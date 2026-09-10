@@ -1,0 +1,19 @@
+[package]
+name = "tpane"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+description = "A minimal terminal multiplexer powered by Ghostty"
+publish = false
+
+[dependencies]
+anyhow = "1.0"
+crossterm = "0.29"
+libc = "0.2"
+libghostty-vt = { version = "=0.2.1", default-features = false }
+portable-pty = "0.9"
+signal-hook = "0.3"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

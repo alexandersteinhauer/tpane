@@ -68,7 +68,7 @@ The UI is rendered inside the host terminal. Bars and buttons are mouse-clickabl
 ## Implementation principles
 
 - Write the application in Rust.
-- Evaluate async Rust based on PTY-library integration and concurrent I/O needs. If async is used, use Tokio; do not assume async is inherently faster.
+- Part 1 uses synchronous Rust with bounded PTY reader/writer threads, not an async runtime. Reevaluate async only if later I/O needs justify it. If async is introduced, use Tokio; do not assume async is inherently faster.
 - Keep ownership of the pane tree and terminal state straightforward, with explicit lifecycle management.
 - Keep terminal parsing and state updates synchronous, separate from I/O. The current Ghostty Rust bindings expose non-`Send`, non-`Sync` terminal objects, so keep them on one thread. If Tokio is selected, a current-thread runtime and local tasks can support this architecture.
 - Ensure sustained output from one terminal does not freeze the UI or prevent other terminals from progressing.
@@ -87,9 +87,9 @@ Start with one terminal and no tabs:
 - Implement keyboard input, rendering, resizing, and correct Ctrl-C and shell job control.
 - Support scrollback, selection, and clipboard copying.
 - Cleanly shut down managed processes when the application closes.
-- Evaluate Tokio alongside the PTY library in this prototype rather than planning a later async conversion.
+- Validate synchronous PTY I/O with bounded reader/writer threads. Keep I/O separate from terminal state so a later Tokio integration does not require rewriting the emulator or pane model.
 
-Pass condition: the user's shell, editor, and a mouse-enabled TUI work correctly inside Ghostty. This step validates the riskiest dependency integration before adding layout complexity.
+Pass condition: the user's shell, editor, and a mouse-enabled TUI work correctly inside Ghostty. This step validates the riskiest dependency integration before adding layout complexity. Automated tests cover the components and PTY integration; the actual host compatibility checks are tracked in [VALIDATION.md](VALIDATION.md).
 
 ### 2. Add nested tabs
 
@@ -122,7 +122,9 @@ Pass condition: these lifecycle and responsiveness checks pass, and the multiple
 - Close a terminal when its login shell exits.
 - Remove empty groups; exit when the root becomes empty.
 
-These are proposed defaults for the previously unspecified interactions. Whether single-child layouts collapse, tab labels, and the exact mouse gestures for scrolling, selection, and clipboard copying remain to be defined.
+These are proposed defaults for the previously unspecified tab interactions. Whether single-child layouts collapse and tab labels remain to be defined.
+
+The part-1 prototype uses the mouse wheel for scrollback and left-button drag selection with copy on release. When an application captures the mouse, Alt/Option requests local selection or scrolling instead. No multiplexer keyboard shortcuts are introduced.
 
 ### MVP exclusions
 
