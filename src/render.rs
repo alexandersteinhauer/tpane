@@ -26,13 +26,28 @@ impl Renderer {
         })
     }
 
+    #[cfg(test)]
     pub fn draw(
         &mut self,
         terminal: &Terminal<'static, '_>,
         output: &mut impl Write,
     ) -> Result<()> {
+        self.draw_at(terminal, output, 0, false)
+    }
+
+    pub fn draw_at(
+        &mut self,
+        terminal: &Terminal<'static, '_>,
+        output: &mut impl Write,
+        top: u16,
+        force: bool,
+    ) -> Result<()> {
         let snapshot = self.state.update(terminal)?;
-        let dirty = snapshot.dirty()?;
+        let dirty = if force {
+            Dirty::Full
+        } else {
+            snapshot.dirty()?
+        };
         if dirty == Dirty::Clean {
             return Ok(());
         }
@@ -47,7 +62,7 @@ impl Renderer {
         let mut text = String::new();
         while let Some(row) = rows.next() {
             if dirty == Dirty::Full || row.dirty()? {
-                write!(self.buffer, "\x1b[{};1H", y + 1)?;
+                write!(self.buffer, "\x1b[{};1H", u32::from(top) + y + 1)?;
                 let mut cells = self.cells.update(row)?;
                 let mut previous = None;
                 while let Some(cell) = cells.next() {
@@ -92,7 +107,7 @@ impl Renderer {
             write!(
                 self.buffer,
                 "\x1b[{};{}H\x1b[{} q\x1b[?25h",
-                cursor.y + 1,
+                u32::from(top) + u32::from(cursor.y) + 1,
                 cursor.x + 1,
                 shape
             )?;
@@ -219,6 +234,28 @@ mod tests {
             cells.bg_color().unwrap(),
             Some(source.color_palette().unwrap().0[4])
         );
+    }
+
+    #[test]
+    fn offset_and_forced_redraw_preserve_ancestor_bars() {
+        let mut source = terminal(12, 2);
+        source.vt_write(b"pane text");
+        let mut renderer = Renderer::new().unwrap();
+        let mut output = Vec::new();
+        renderer.draw_at(&source, &mut output, 2, false).unwrap();
+        let mut host = terminal(12, 4);
+        host.vt_write(b"\x1b[?7lroot bar\r\nchild bar");
+        host.vt_write(&output);
+        assert_eq!(text_at(&host, 0, 0), 'r' as u32);
+        assert_eq!(text_at(&host, 0, 1), 'c' as u32);
+        assert_eq!(text_at(&host, 0, 2), 'p' as u32);
+        assert_eq!(host.cursor_y().unwrap(), 2);
+        host.vt_write(b"\x1b[3;1Hother pane");
+        output.clear();
+        renderer.draw_at(&source, &mut output, 2, true).unwrap();
+        host.vt_write(&output);
+        assert_eq!(text_at(&host, 0, 2), 'p' as u32);
+        assert_eq!(text_at(&host, 0, 0), 'r' as u32);
     }
 
     #[test]

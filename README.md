@@ -2,7 +2,7 @@
 
 A minimal Rust terminal multiplexer for macOS, running inside Ghostty.
 
-**Current milestone: part 1, a single terminal.** No tabs, detach/reattach, persistence, or async runtime yet. See [the design](docs/DESIGN.md) for the next milestones.
+**Current milestone: part 2, nested tabs.** No detach/reattach, persistence, splits, or async runtime. See [the design](docs/DESIGN.md) for the remaining daily-use validation.
 
 ## Build and run
 
@@ -30,10 +30,15 @@ With a compatible default SDK and Zig 0.15.2 already on `PATH`, ordinary `cargo`
 
 ## Use
 
-- The initial terminal fills the window and starts `$SHELL` as a login shell, falling back to `/bin/zsh`. It inherits the application's working directory.
+- The initial terminal starts `$SHELL` as a login shell, falling back to `/bin/zsh`, beneath an empty tab bar. It inherits the application's working directory.
+- Click the right-aligned `[+]` to add a tab. The first click preserves the current terminal as the first tab and opens a new shell as the selected second tab.
+- Every child terminal has its own empty bar for deeper nesting. Existing group bars add siblings. Click any ancestor tab to switch; each group remembers its selection.
+- New shells inherit the active terminal's working directory via macOS process inspection when available, otherwise the launch directory.
+- Click `[x]` to close a tab and its entire subtree. If any terminal in the subtree has a foreground job, the top bar offers `[Cancel]` and `[Close]`. Closing an idle shell also terminates its background jobs without confirmation.
+- Single-child groups keep their bar. Empty groups are removed. Initial tab labels are stable `Shell N` and `Tabs N`, rather than application-supplied titles.
 - Override the shell with `tpane --shell /bin/zsh`.
 - Keyboard input goes to the shell/application. There are no multiplexer keyboard shortcuts.
-- Exit a foreground program normally to return to its shell. Use `exit` (or the shell's EOF behavior) to close tpane.
+- Exit a foreground program normally to return to its shell. `exit` (or the shell's EOF behavior) closes that terminal's tab. Closing the final terminal exits tpane.
 - Mouse wheel scrolls the terminal's own history, retained for up to 10,000 lines.
 - Drag with the left mouse button to select text. Releasing copies the selection to the macOS clipboard using `pbcopy`.
 - Mouse events go to applications that request them. Hold **Alt/Option** to use tpane's local selection/scrolling instead; the host must forward that modifier and mouse event.
@@ -43,8 +48,12 @@ The application handles resize, alternate screens, cursor style, Unicode, colors
 
 ## Architecture
 
-- The main thread owns Ghostty terminal state, selection, input encoding, and incremental rendering.
-- A blocking PTY reader feeds a bounded channel. The main loop parses a bounded amount of output per iteration and renders at up to approximately 60 FPS.
+- Host events use Crossterm's level-triggered `/dev/tty` backend so simultaneous resize and keyboard readiness are not lost.
+- A pure pane tree holds terminal IDs and selected children. The main thread owns each terminal's independent Ghostty state, selection, input encoding, and renderer.
+- Native PTY allocation is serialized within the process to avoid concurrent macOS allocation failures; terminal I/O and child execution remain independent.
+- Each terminal has a blocking PTY reader and bounded channel. Round-robin polling with a global output budget keeps hidden terminals progressing while rendering only the active terminal at up to approximately 60 FPS.
+- All terminals, including hidden ones, are resized according to their nesting depth. Ancestor bars are excluded from PTY dimensions; mouse coordinates are translated into terminal-local coordinates. In-band resize replies are flushed even without child output.
+- Tab switching forces a complete redraw of the selected terminal, including when its cached render state was clean. Subtree process cleanup runs on worker threads and is joined before application exit.
 - A blocking PTY writer keeps a stopped program or a large paste from blocking rendering and shutdown. Outstanding input is limited to 8 MiB; exceeding the limit produces an error rather than unbounded allocation.
 - Terminal replies are handled locally, not forwarded as queries to the host.
 - Normal exit, errors, Rust panic unwinding, SIGHUP, SIGTERM, SIGINT, and SIGQUIT restore the host terminal and initiate child cleanup. Raw keyboard Ctrl-C still reaches the child PTY.
@@ -57,12 +66,15 @@ The application handles resize, alternate screens, cursor style, Unicode, colors
 ./scripts/cargo.sh clippy --all-targets --locked -- -D warnings
 ```
 
-Automated tests exercise emulation, rendering, input modes, scrollback selection, PTY behavior, bounded input, and process cleanup. They do not modify the real clipboard.
+Automated tests exercise emulation, rendering offsets, input modes, scrollback selection, pane-tree mutations, bar hit testing, PTY behavior, bounded input, and process cleanup. Black-box tests run the actual binary inside a PTY. They do not modify the real clipboard.
 
 Before treating this as daily-use ready, run the [manual Ghostty checklist](docs/VALIDATION.md) with your actual shell/editor configuration. Automated PTY tests are not a substitute for testing the real host's input and rendering behavior.
 
 ## Prototype limitations
 
+- Repeated parallel PTY stress tests still expose an intermittent startup/resize failure; see the open finding in `docs/VALIDATION.md`. Daily-use hardening (part 3) is not complete.
+- Tab overflow is not managed; enlarge the window when tabs become too narrow to label or close. If nesting exceeds the window height, deeper bars are clipped to preserve at least one terminal row and return when the window grows.
+- Tab operations and input errors appear temporarily in the top bar; click the notice to dismiss it. They do not terminate unrelated terminals.
 - No graphics/image protocols, clickable hyperlink UI, or propagation of application clipboard requests. Clipboard reads from child applications are not allowed.
 - Crossterm reports cell-based mouse positions, not exact pixel positions. Keyboard layout/physical-key information is also incomplete; extended input needs testing with your layout.
 - Selection is basic drag selection; no word/line selection or drag-edge autoscroll yet. Use the wheel to reach history before selecting.

@@ -37,8 +37,11 @@ Every terminal pane starts with an empty tab bar above its terminal content. Eve
 - Clicking a tab selects its child pane.
 - Only the selected child is displayed, but terminals in unselected tabs keep running and consuming output.
 - All bars along the active branch remain visible, allowing switching at any ancestor level.
-- Each tab layout remembers its selected child.
-- Tabs have close buttons. Closing a tab removes its pane and terminates any terminals in its subtree.
+- Each tab layout remembers its selected child. Newly created tabs become selected immediately.
+- Tabs have close buttons. Closing a tab removes its pane and terminates any terminals in its subtree. A subtree containing a foreground job requires a second mouse click on a confirmation bar.
+- Removing a sibling preserves the selected child's identity. If the selected tab closes, select the next sibling, falling back to the previous sibling.
+- Preserve single-child groups and their bars. Remove empty groups recursively; closing the final terminal exits the application.
+- Initial labels are stable `Shell N` for terminals and `Tabs N` for nested groups. Application-supplied titles and renaming are deferred.
 
 There are no split panes in v1.
 
@@ -68,8 +71,12 @@ The UI is rendered inside the host terminal. Bars and buttons are mouse-clickabl
 ## Implementation principles
 
 - Write the application in Rust.
-- Part 1 uses synchronous Rust with bounded PTY reader/writer threads, not an async runtime. Reevaluate async only if later I/O needs justify it. If async is introduced, use Tokio; do not assume async is inherently faster.
-- Keep ownership of the pane tree and terminal state straightforward, with explicit lifecycle management.
+- The MVP uses synchronous Rust with bounded PTY reader/writer threads, not an async runtime. Reevaluate async only if later I/O needs justify it. If async is introduced, use Tokio; do not assume async is inherently faster.
+- Keep ownership of the pane tree and terminal state straightforward, with explicit lifecycle management. The tree contains stable IDs; a separate map owns each terminal's state, PTY, and I/O workers.
+- Resize hidden terminals too, subtracting their ancestor bars and leaf bar from the host height. Clip deeper bars only when necessary to preserve one terminal row in a very short window.
+- Bound output processing across terminals and rotate polling order. Switching tabs forces a redraw even if the selected terminal's render cache is clean.
+- Translate mouse coordinates into the active terminal's content area. Tab controls consume their mouse press/release so clicking the UI does not inject input into a terminal.
+- Perform closed-subtree process cleanup off the UI thread and wait for outstanding cleanup before application exit.
 - Keep terminal parsing and state updates synchronous, separate from I/O. The current Ghostty Rust bindings expose non-`Send`, non-`Sync` terminal objects, so keep them on one thread. If Tokio is selected, a current-thread runtime and local tasks can support this architecture.
 - Ensure sustained output from one terminal does not freeze the UI or prevent other terminals from progressing.
 - Prioritize correct terminal behavior, resizing, process cleanup, and predictable interaction over additional features.
@@ -115,14 +122,14 @@ Validate the following scenarios:
 
 Pass condition: these lifecycle and responsiveness checks pass, and the multiplexer supports the user's normal development workflow reliably.
 
-### Proposed MVP interaction defaults
+### MVP interaction defaults
 
 - Select newly created tabs.
 - Confirm closing tabs whose subtree contains running foreground jobs.
 - Close a terminal when its login shell exits.
 - Remove empty groups; exit when the root becomes empty.
 
-These are proposed defaults for the previously unspecified tab interactions. Whether single-child layouts collapse and tab labels remain to be defined.
+These defaults are implemented in part 2. Single-child groups retain their bars; terminal and group labels use stable IDs as described above.
 
 The part-1 prototype uses the mouse wheel for scrollback and left-button drag selection with copy on release. When an application captures the mouse, Alt/Option requests local selection or scrolling instead. No multiplexer keyboard shortcuts are introduced.
 

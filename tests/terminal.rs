@@ -101,14 +101,20 @@ impl Host {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         std::fs::create_dir(&home).unwrap();
-        let pair = native_pty_system()
-            .openpty(PtySize {
-                rows: 24,
-                cols: 80,
-                pixel_width: 0,
-                pixel_height: 0,
-            })
-            .unwrap();
+        let pair = {
+            static ALLOCATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+            let _guard = ALLOCATION
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            native_pty_system()
+                .openpty(PtySize {
+                    rows: 24,
+                    cols: 80,
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .unwrap()
+        };
         let before = termios(&*pair.master);
         let reader = pair.master.try_clone_reader().unwrap();
         let writer = pair.master.take_writer().unwrap();
@@ -161,6 +167,96 @@ impl Host {
         host.track_pid("__SHELL:");
         assert_eq!(host.terminal.active_screen().unwrap(), Screen::Alternate);
         host
+    }
+
+    // Chrome interactions always include a release, so mouse capture cannot
+    // leak into subsequent input. Coordinates in these helpers are zero-based.
+    fn click(&mut self, col: u16, row: u16) {
+        self.send(
+            format!(
+                "\x1b[<0;{};{}M\x1b[<0;{};{}m",
+                col + 1,
+                row + 1,
+                col + 1,
+                row + 1
+            )
+            .as_bytes(),
+        );
+    }
+
+    fn plus(&mut self, row: u16) {
+        self.click(self.cols - 2, row);
+    }
+
+    fn select(&mut self, row: u16, index: u16, count: u16) {
+        self.click((self.cols - 3) * index / count + 1, row);
+    }
+
+    fn close_tab(&mut self, row: u16, index: u16, count: u16) {
+        self.click((self.cols - 3) * (index + 1) / count - 2, row);
+    }
+
+    fn resize(&mut self, cols: u16, rows: u16) {
+        self.master
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .unwrap();
+        self.terminal.resize(cols, rows, 0, 0).unwrap();
+        self.rows = rows;
+        self.cols = cols;
+    }
+
+    fn prepare_shell(&mut self, marker: &str) -> Process {
+        self.send(
+            format!("stty -echo; set +H; PS1=''; PS2=''; printf '__%s:%s__\\n' {marker} \"$$\"\n")
+                .as_bytes(),
+        );
+        self.track_pid(&format!("__{marker}:"))
+    }
+
+    fn dimensions(&mut self, marker: &str, rows: u16) {
+        // Host input and SIGWINCH are independent streams. Wait in the child
+        // for the ioctl size instead of assuming the resize won that race.
+        self.send(format!("i=0; while [ \"$(stty size)\" != '{rows} {}' ] && [ \"$i\" -lt 50 ]; do i=$((i+1)); sleep 0.1; done; printf '__%s:' {marker}; stty size\n", self.cols).as_bytes());
+        let expected = format!("__{marker}:{rows} {}", self.cols);
+        self.until("pane viewport dimensions", |s| s.contains(&expected));
+    }
+
+    fn bars(&mut self, labels: &[&[&str]]) {
+        // Match entire rows: catches stale labels/close controls after a tree
+        // mutation, incorrect rounding, and terminal output overwriting chrome.
+        let expected: Vec<_> = labels
+            .iter()
+            .map(|labels| {
+                let available = usize::from(self.cols - 3);
+                let mut row = String::new();
+                for (i, label) in labels.iter().enumerate() {
+                    let width = available * (i + 1) / labels.len() - available * i / labels.len();
+                    let close = if width >= 6 { "[x]" } else { "" };
+                    let text_width = width - close.len();
+                    let text: String = format!(" {label}").chars().take(text_width).collect();
+                    row.push_str(&format!("{text:<text_width$}{close}"));
+                }
+                row.push_str(&" ".repeat(available - row.len()));
+                row.push_str("[+]");
+                row
+            })
+            .collect();
+        self.until("exact tab bars", |s| {
+            s.lines()
+                .take(expected.len())
+                .eq(expected.iter().map(String::as_str))
+        });
+    }
+
+    fn wait_dead(&mut self, processes: &[Process]) {
+        self.until("closed pane processes to terminate", |_| {
+            processes.iter().all(|p| !p.alive())
+        });
     }
 
     fn send(&mut self, bytes: &[u8]) {
@@ -398,7 +494,7 @@ fn host_resize_reaches_child_stty() {
     let mut host = Host::new();
     host.send(b"printf '__%s:' INITIAL; stty size\n");
     host.until("initial child dimensions", |s| {
-        s.contains("__INITIAL:24 80")
+        s.contains("__INITIAL:23 80")
     });
     host.master
         .resize(PtySize {
@@ -413,9 +509,9 @@ fn host_resize_reaches_child_stty() {
     host.cols = 101;
     // Input and SIGWINCH can race. Let the child observe the new ioctl state,
     // with a bounded loop, rather than relying on a fixed sleep in the test.
-    host.send(b"i=0; while [ \"$(stty size)\" != '31 101' ] && [ \"$i\" -lt 50 ]; do i=$((i+1)); sleep 0.1; done; printf '__%s:' RESIZED; stty size\n");
+    host.send(b"i=0; while [ \"$(stty size)\" != '30 101' ] && [ \"$i\" -lt 50 ]; do i=$((i+1)); sleep 0.1; done; printf '__%s:' RESIZED; stty size\n");
     host.until("resized child dimensions", |s| {
-        s.contains("__RESIZED:31 101")
+        s.contains("__RESIZED:30 101")
     });
     host.send(b"exit\n");
     host.wait_exit(0);
@@ -445,7 +541,7 @@ fn check_idle_editor_resize(command: &str) {
         format!("{command} -c 'set laststatus=2 statusline=SIZE_%{{&columns}}x%{{&lines}}'\n")
             .as_bytes(),
     );
-    host.until("initial editor dimensions", |s| s.contains("SIZE_80x24"));
+    host.until("initial editor dimensions", |s| s.contains("SIZE_80x23"));
     for (cols, rows) in [(101, 31), (47, 12), (80, 24)] {
         host.master
             .resize(PtySize {
@@ -458,12 +554,12 @@ fn check_idle_editor_resize(command: &str) {
         host.terminal.resize(cols, rows, 0, 0).unwrap();
         host.rows = rows;
         host.cols = cols;
-        let expected = format!("SIZE_{cols}x{rows}");
+        let expected = format!("SIZE_{cols}x{}", rows - 1);
         host.until("idle editor resize", |s| s.contains(&expected));
     }
     host.send(b":q!\r");
     host.until("shell after resized editor", |s| {
-        s.contains("__SHELL:") && !s.contains("SIZE_80x24")
+        s.contains("__SHELL:") && !s.contains("SIZE_80x23")
     });
     host.send(b"exit\n");
     host.wait_exit(0);
@@ -507,7 +603,7 @@ finally:
     host.terminal.resize(101, 31, 0, 0).unwrap();
     host.rows = 31;
     host.cols = 101;
-    let expected = b"\x1b[48;31;101;0;0t"
+    let expected = b"\x1b[48;30;101;0;0t"
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
@@ -571,20 +667,310 @@ fn vi_alternate_screen_returns_to_shell_contents() {
 }
 
 #[test]
+fn first_plus_preserves_shell_state_and_inherits_active_cwd() {
+    let mut host = Host::new();
+    let first = host.dependents[0];
+    host.bars(&[&[]]);
+    host.send(b"mkdir 'inherited directory'; cd 'inherited directory'; KEEP=original; printf '__%s__\\n' ORIGINAL_CONTENTS\n");
+    host.until("original shell state", |s| {
+        s.contains("__ORIGINAL_CONTENTS__")
+    });
+
+    host.plus(0);
+    host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+    let second = host.prepare_shell("SECOND");
+    assert_ne!(first.pid, second.pid, "plus did not select a new shell");
+    assert!(!host.visible().contains("__ORIGINAL_CONTENTS__"));
+    host.dimensions("SECOND_SIZE", 22);
+    host.send(b"printf '__%s:%s__\\n' CWD \"${PWD##*/}\"; printf '__%s:%s__\\n' NEW_STATE \"${KEEP-unset}\"\n");
+    host.until("new shell inherits cwd, not shell variables", |s| {
+        s.contains("__CWD:inherited directory__") && s.contains("__NEW_STATE:unset__")
+    });
+
+    host.select(0, 0, 2);
+    host.until("original contents restored", |s| {
+        s.contains("__ORIGINAL_CONTENTS__") && !s.contains("__SECOND_SIZE:")
+    });
+    host.send(b"printf '__%s:%s:%s__\\n' ORIGINAL_STATE \"$KEEP\" \"$$\"\n");
+    host.until("original shell and variables preserved", |s| {
+        s.contains(&format!("__ORIGINAL_STATE:original:{}__", first.pid))
+    });
+    host.dimensions("FIRST_SIZE", 22);
+    host.send(b"exit 7\n");
+    // Groups with one child are not collapsed; the terminal still has two bars.
+    host.bars(&[&["Shell 2"], &[]]);
+    host.until("remaining shell selected after exit", |s| {
+        s.contains("__SECOND_SIZE:")
+    });
+    host.dimensions("REMAINING_SIZE", 22);
+    host.send(b"exit 19\n");
+    host.wait_exit(19);
+}
+
+#[test]
+fn recursive_tabs_restore_selected_descendants_and_prune_only_empty_groups() {
+    let mut host = Host::new();
+    host.plus(0);
+    host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+    host.prepare_shell("SECOND");
+    host.plus(1);
+    host.bars(&[&["Shell 1", "Tabs 5"], &["Shell 2", "Shell 4"], &[]]);
+    host.prepare_shell("FOURTH");
+    host.dimensions("NESTED_SIZE", 21);
+
+    host.select(0, 0, 2);
+    host.until("first ancestor branch", |s| {
+        s.contains("__SHELL:") && !s.contains("__FOURTH:")
+    });
+    host.bars(&[&["Shell 1", "Tabs 5"], &[]]);
+    host.select(0, 1, 2);
+    host.until("selected descendant restored", |s| s.contains("__FOURTH:"));
+    host.select(1, 0, 2);
+    host.until("other nested child selected", |s| {
+        s.contains("__SECOND:") && !s.contains("__FOURTH:")
+    });
+    host.select(0, 0, 2);
+    host.until("first ancestor again", |s| s.contains("__SHELL:"));
+    host.select(0, 1, 2);
+    host.until("changed descendant selection remembered", |s| {
+        s.contains("__SECOND:") && !s.contains("__FOURTH:")
+    });
+
+    host.send(b"exit 3\n");
+    host.bars(&[&["Shell 1", "Tabs 5"], &["Shell 4"], &[]]);
+    host.until("single-child nested group retained", |s| {
+        s.contains("__FOURTH:")
+    });
+    host.dimensions("SINGLE_NESTED_SIZE", 21);
+    host.send(b"exit 4\n");
+    host.bars(&[&["Shell 1"], &[]]);
+    host.until("empty nested group pruned", |s| s.contains("__SHELL:"));
+    host.dimensions("PRUNED_SIZE", 22);
+    host.send(b"exit 17\n");
+    host.wait_exit(17);
+}
+
+#[test]
+fn hidden_pane_drains_output_and_receives_in_band_resize() {
+    let mut host = Host::new();
+    host.plus(0);
+    host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+    host.prepare_shell("VISIBLE");
+    host.select(0, 0, 2);
+    host.until("first shell selected", |s| s.contains("__SHELL:"));
+    std::fs::write(
+        host.home.join("hidden_probe.py"),
+        r#"import os, signal, termios, tty
+saved = termios.tcgetattr(0)
+try:
+    tty.setraw(0)
+    signal.signal(signal.SIGWINCH, signal.SIG_IGN)
+    os.write(1, b'\x1b[?2048h\r\n__HIDDEN_PID:' + str(os.getpid()).encode() + b'__\r\n')
+    data = b''
+    while not data.endswith(b't'):
+        data += os.read(0, 1)
+    # Far more than a PTY buffer: completion proves hidden output was drained.
+    for i in range(8192):
+        os.write(1, b'HIDDEN_OUTPUT_PADDING_0123456789\r\n')
+    os.write(1, b'__HIDDEN_REPORT:' + data.hex().encode() + b'__\r\n__HIDDEN_DONE__\r\n')
+finally:
+    os.write(1, b'\x1b[?2048l')
+    termios.tcsetattr(0, termios.TCSANOW, saved)
+open('hidden.done', 'w').close()
+"#,
+    )
+    .unwrap();
+    host.send(b"/usr/bin/python3 hidden_probe.py\n");
+    let probe = host.track_pid("__HIDDEN_PID:");
+    host.select(0, 1, 2);
+    host.until("probe hidden", |s| {
+        s.contains("__VISIBLE:") && !s.contains("__HIDDEN_PID:")
+    });
+    host.resize(101, 31);
+    host.dimensions("VISIBLE_RESIZED", 29);
+    let done = host.home.join("hidden.done");
+    let visible = host.until("hidden output drained without selecting pane", |_| {
+        done.exists()
+    });
+    assert!(
+        !visible.contains("__HIDDEN_DONE__"),
+        "hidden output leaked into active pane"
+    );
+    host.select(0, 0, 2);
+    let report = b"\x1b[48;29;101;0;0t"
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>();
+    host.until("hidden output and resize report restored", |s| {
+        s.contains("__HIDDEN_DONE__") && s.contains(&format!("__HIDDEN_REPORT:{report}__"))
+    });
+    host.wait_dead(&[probe]);
+    host.dimensions("HIDDEN_RESIZED", 29);
+    host.send(b"exit\n");
+    host.bars(&[&["Shell 2"], &[]]);
+    host.send(b"exit\n");
+    host.wait_exit(0);
+}
+
+#[test]
+fn subtree_close_confirms_foreground_job_and_cancel_preserves_every_session() {
+    let mut host = Host::new();
+    let first = host.dependents[0];
+    host.plus(0);
+    host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+    let second = host.prepare_shell("SECOND");
+    host.plus(1);
+    host.bars(&[&["Shell 1", "Tabs 5"], &["Shell 2", "Shell 4"], &[]]);
+    let fourth = host.prepare_shell("FOURTH");
+    host.send(b"/bin/sh -c 'printf \"__%s:%s__\\n\" FOREGROUND \"$$\"; exec /bin/sleep 60'\n");
+    let job = host.track_pid("__FOREGROUND:");
+    // Close a subtree while its busy descendant is hidden: checking only the
+    // active shell would silently kill the job without asking.
+    host.select(0, 0, 2);
+    host.until("unrelated shell selected", |s| s.contains("__SHELL:"));
+    host.close_tab(0, 1, 2);
+    host.until("foreground close confirmation", |s| {
+        s.lines().next().unwrap_or("").ends_with("[Cancel] [Close]")
+    });
+    assert!(first.alive() && second.alive() && fourth.alive() && job.alive());
+    host.click(host.cols - 15, 0);
+    host.bars(&[&["Shell 1", "Tabs 5"], &[]]);
+    host.select(0, 1, 2);
+    host.until("cancel preserved selected descendant contents", |s| {
+        s.contains("__FOREGROUND:")
+    });
+    assert!(second.alive() && fourth.alive() && job.alive());
+    host.close_tab(0, 1, 2);
+    host.until("second close confirmation", |s| {
+        s.contains("[Cancel] [Close]")
+    });
+    host.click(host.cols - 4, 0);
+    host.bars(&[&["Shell 1"], &[]]);
+    host.until("surviving root child restored", |s| {
+        s.contains("__SHELL:") && !s.contains("__FOREGROUND:")
+    });
+    host.wait_dead(&[second, fourth, job]);
+    assert!(first.alive(), "subtree close killed unrelated shell");
+    host.send(b"printf '__%s__\\n' SURVIVED_CLOSE\n");
+    host.until("surviving shell usable", |s| {
+        s.contains("__SURVIVED_CLOSE__")
+    });
+    host.send(b"exit\n");
+    host.wait_exit(0);
+}
+
+#[test]
+fn background_job_does_not_prompt_and_is_cleaned_up_with_its_tab() {
+    let mut host = Host::new();
+    let first = host.dependents[0];
+    host.plus(0);
+    host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+    let second = host.prepare_shell("SECOND");
+    host.send(
+        b"(trap '' HUP TERM; exec /bin/sleep 60) & printf '__%s:%s__\\n' BACKGROUND \"$!\"\n",
+    );
+    let job = host.track_pid("__BACKGROUND:");
+    host.close_tab(0, 1, 2);
+    host.bars(&[&["Shell 1"], &[]]);
+    host.until("background tab closed without confirmation", |s| {
+        s.contains("__SHELL:") && !s.contains("[Cancel]")
+    });
+    host.wait_dead(&[second, job]);
+    assert!(first.alive());
+    host.send(b"exit\n");
+    host.wait_exit(0);
+}
+
+#[test]
+fn repeated_switches_redraw_clean_terminal_engines_without_stale_cells() {
+    let mut host = Host::new();
+    host.plus(0);
+    host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+    host.prepare_shell("SECOND");
+    // No shell commands or other terminal output during the switching loop:
+    // engine dirty flags alone cannot be used to decide whether to paint.
+    host.send(
+        b"printf '\\033[2J\\033[HSECOND_SCREEN\\033[8;40HSECOND_RIGHT\\033[22;1HSECOND_BOTTOM'\n",
+    );
+    let second = host.until("second static screen", |s| s.contains("SECOND_BOTTOM"));
+    let second_body = second.lines().skip(2).collect::<Vec<_>>().join("\n");
+    host.select(0, 0, 2);
+    host.until("first shell selected", |s| s.contains("__SHELL:"));
+    host.send(b"printf '\\033[2J\\033[HFIRST_SCREEN\\033[4;2HFIRST_LEFT\\033[22;1HFIRST_BOTTOM'\n");
+    let first = host.until("first static screen", |s| s.contains("FIRST_BOTTOM"));
+    let first_body = first.lines().skip(2).collect::<Vec<_>>().join("\n");
+    for _ in 0..8 {
+        host.select(0, 1, 2);
+        host.until("clean second engine repainted exactly", |s| {
+            s.lines().skip(2).collect::<Vec<_>>().join("\n") == second_body
+        });
+        host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+        host.select(0, 0, 2);
+        host.until("clean first engine repainted exactly", |s| {
+            s.lines().skip(2).collect::<Vec<_>>().join("\n") == first_body
+        });
+    }
+    host.send(b"exit\n");
+    host.bars(&[&["Shell 2"], &[]]);
+    host.send(b"exit\n");
+    host.wait_exit(0);
+}
+
+#[test]
+fn nested_chrome_is_consumed_and_terminal_mouse_uses_leaf_coordinates() {
+    let mut host = Host::new();
+    host.plus(0);
+    host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+    host.prepare_shell("SECOND");
+    host.plus(1);
+    host.bars(&[&["Shell 1", "Tabs 5"], &["Shell 2", "Shell 4"], &[]]);
+    host.prepare_shell("FOURTH");
+    host.send(b"stty raw -echo; printf '\\033[?1000h\\033[?1006h__%s__\\r\\n' MOUSE_READY; dd bs=1 count=9 2>/dev/null | od -An -tx1; printf '\\033[?1000l\\033[?1006l\\r\\n'; stty sane -echo; printf '__%s__\\n' MOUSE_DONE\n");
+    host.until("nested mouse reader ready", |s| {
+        s.contains("__MOUSE_READY__")
+    });
+    host.select(0, 1, 2);
+    host.select(1, 1, 2);
+    host.click(3, 2);
+    // Host row 5 is leaf row 2 after subtracting all three active bars.
+    host.send(b"\x1b[<0;4;5M");
+    let screen = host.until("nested mouse reader complete", |s| {
+        s.contains("__MOUSE_DONE__")
+    });
+    assert!(
+        screen
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .windows(9)
+            .any(|bytes| bytes == ["1b", "5b", "3c", "30", "3b", "34", "3b", "32", "4d"]),
+        "{screen}"
+    );
+    host.send(b"exit\n");
+    host.bars(&[&["Shell 1", "Tabs 5"], &["Shell 2"], &[]]);
+    host.send(b"exit\n");
+    host.bars(&[&["Shell 1"], &[]]);
+    host.send(b"exit\n");
+    host.wait_exit(0);
+}
+
+#[test]
 fn sgr_mouse_press_is_forwarded_to_tracking_application() {
     let mut host = Host::new();
     // dd/od is a deterministic application: enable SGR tracking, consume one
-    // nine-byte press, print its hex bytes, then disable tracking. No release
-    // or local selection is sent, so this never touches the real clipboard.
+    // nine-byte press, print its hex bytes, then disable tracking. Only chrome
+    // receives a release; no terminal selection touches the real clipboard.
     host.send(b"stty raw -echo; printf '\\033[?1000h\\033[?1006h__%s__\\r\\n' MOUSE_READY; dd bs=1 count=9 2>/dev/null | od -An -tx1; printf '\\033[?1000l\\033[?1006l\\r\\n'; stty sane -echo; printf '__%s__\\n' MOUSE_DONE\n");
     host.until("mouse reader ready", |s| s.contains("__MOUSE_READY__"));
+    // The empty leaf bar is chrome even when the child requests mouse input.
+    // Its press AND release must be consumed, not counted by dd.
+    host.click(3, 0);
     host.send(b"\x1b[<0;4;3M");
     let screen = host.until("mouse reader complete", |s| s.contains("__MOUSE_DONE__"));
     let words: Vec<_> = screen.split_whitespace().collect();
     assert!(
         words
             .windows(9)
-            .any(|bytes| bytes == ["1b", "5b", "3c", "30", "3b", "34", "3b", "33", "4d"]),
+            .any(|bytes| bytes == ["1b", "5b", "3c", "30", "3b", "34", "3b", "32", "4d"]),
         "{screen}"
     );
     host.send(b"exit\n");

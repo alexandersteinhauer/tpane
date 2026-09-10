@@ -19,6 +19,10 @@ pub struct SelectionState {
 }
 
 impl SelectionState {
+    pub fn cancel_drag(&mut self) {
+        self.dragging = false;
+    }
+
     pub fn clear(&mut self, terminal: &Terminal<'_, '_>) -> Result<()> {
         self.dragging = false;
         terminal.set_selection(None)?;

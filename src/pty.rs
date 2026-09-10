@@ -8,10 +8,15 @@
 //! reaped; orphaned grandchildren are reaped by launchd.
 
 use anyhow::{Context, Result, ensure};
-use portable_pty::{Child, CommandBuilder, ExitStatus, MasterPty, PtySize, native_pty_system};
+use portable_pty::{
+    Child, CommandBuilder, ExitStatus, MasterPty, PtyPair, PtySize, native_pty_system,
+};
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::os::unix::ffi::OsStringExt;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 pub struct Session {
@@ -24,15 +29,25 @@ pub struct Session {
 }
 
 impl Session {
+    #[cfg(test)]
     pub fn spawn(shell: &Path, rows: u16, cols: u16) -> Result<Self> {
+        Self::spawn_in(
+            shell,
+            rows,
+            cols,
+            &std::env::current_dir().context("reading current directory")?,
+        )
+    }
+
+    pub fn spawn_in(shell: &Path, rows: u16, cols: u16, cwd: &Path) -> Result<Self> {
         let size = size(rows, cols)?;
-        let pair = native_pty_system().openpty(size).context("opening PTY")?;
+        let pair = open_pty(size)?;
         // Acquire this before spawning so a writer failure cannot orphan a child.
         let writer = pair.master.take_writer().context("opening PTY writer")?;
         let mut command = CommandBuilder::new(shell);
         command.arg("-l");
-        // portable-pty otherwise defaults to HOME, not the application's cwd.
-        command.cwd(std::env::current_dir().context("reading current directory")?);
+        // portable-pty otherwise defaults to HOME.
+        command.cwd(cwd);
         command.env("SHELL", shell);
         command.env("TERM", "xterm-256color");
         command.env("COLORTERM", "truecolor");
@@ -92,6 +107,58 @@ impl Session {
             known,
             exit_status: None,
         })
+    }
+
+    pub fn cwd(&self) -> Option<PathBuf> {
+        if self.exit_status.is_some() {
+            return None;
+        }
+        let shell = self.known.get(&self.shell_pid)?;
+        if !shell.is_running() {
+            return None;
+        }
+        let mut info = std::mem::MaybeUninit::<libc::proc_vnodepathinfo>::zeroed();
+        let len = std::mem::size_of::<libc::proc_vnodepathinfo>() as libc::c_int;
+        let read = unsafe {
+            libc::proc_pidinfo(
+                self.shell_pid,
+                libc::PROC_PIDVNODEPATHINFO,
+                0,
+                info.as_mut_ptr().cast(),
+                len,
+            )
+        };
+        // Check birth time on both sides of the query to reject PID reuse.
+        if read != len || !shell.is_running() {
+            return None;
+        }
+        let info = unsafe { info.assume_init() };
+        let path = info.pvi_cdir.vip_path.as_flattened();
+        let end = path.iter().position(|&byte| byte == 0)?;
+        let path = PathBuf::from(OsString::from_vec(
+            path[..end].iter().map(|&byte| byte as u8).collect(),
+        ));
+        path.is_absolute().then_some(path)
+    }
+
+    pub fn has_foreground_job(&self) -> bool {
+        if self.exit_status.is_some() {
+            return false;
+        }
+        if let Some(shell) = Process::read(self.shell_pid)
+            && (shell.zombie
+                || self
+                    .known
+                    .get(&self.shell_pid)
+                    .is_some_and(|known| !known.same_process(&shell)))
+        {
+            return false;
+        }
+        let Some(fd) = self.master.as_raw_fd() else {
+            return true;
+        };
+        let foreground = unsafe { libc::tcgetpgrp(fd) };
+        foreground <= 0 || foreground != self.shell_pid
     }
 
     /// Readers own a duplicate descriptor. Callers must stop their reader worker
@@ -249,6 +316,15 @@ impl Drop for Session {
     }
 }
 
+fn open_pty(size: PtySize) -> Result<PtyPair> {
+    // Concurrent macOS PTY allocation can fail; serialize allocation, not I/O or spawning.
+    static ALLOCATION: Mutex<()> = Mutex::new(());
+    let _guard = ALLOCATION
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    native_pty_system().openpty(size).context("opening PTY")
+}
+
 fn size(rows: u16, cols: u16) -> Result<PtySize> {
     ensure!(rows > 0 && cols > 0, "PTY dimensions must be nonzero");
     Ok(PtySize {
@@ -358,7 +434,10 @@ mod tests {
         fn new() -> Self {
             // sh avoids personal zsh/bash interactive configuration; -l still
             // exercises the public login-shell path.
-            let session = Session::spawn(Path::new("/bin/sh"), 24, 80).unwrap();
+            Self::with_session(Session::spawn(Path::new("/bin/sh"), 24, 80).unwrap())
+        }
+
+        fn with_session(session: Session) -> Self {
             let mut reader = session.reader().unwrap();
             let (tx, output) = mpsc::channel();
             std::thread::spawn(move || {
@@ -387,7 +466,15 @@ mod tests {
         }
 
         fn send(&mut self, command: &str) {
-            self.session.write(command.as_bytes()).unwrap();
+            if let Err(error) = self.session.write(command.as_bytes()) {
+                let status = self.session.try_wait();
+                let process =
+                    Process::read(self.session.shell_pid).map(|p| (p.pid, p.ppid, p.sid, p.zombie));
+                panic!(
+                    "PTY write: {error:#}; status: {status:?}; process: {process:?}; output: {:?}",
+                    self.received
+                );
+            }
         }
 
         fn until(&mut self, marker: &str) -> String {
@@ -423,6 +510,24 @@ mod tests {
     }
 
     #[test]
+    fn concurrent_allocations_keep_independent_sizes() {
+        for _ in 0..20 {
+            let barrier = std::sync::Barrier::new(8);
+            std::thread::scope(|scope| {
+                for rows in 1..=8 {
+                    let barrier = &barrier;
+                    scope.spawn(move || {
+                        let pair = open_pty(size(rows, 80).unwrap());
+                        barrier.wait();
+                        let pair = pair.unwrap();
+                        assert_eq!(pair.master.get_size().unwrap().rows, rows);
+                    });
+                }
+            });
+        }
+    }
+
+    #[test]
     fn output_environment_login_and_cwd() {
         let mut terminal = Terminal::new();
         terminal.send("printf 'ENV=%s/%s\\n' \"$TERM\" \"$COLORTERM\"; pwd; shopt -q login_shell && printf 'LOGIN=yes\\n'; printf '__%s__\\n' DONE\n");
@@ -434,6 +539,47 @@ mod tests {
             "{output}"
         );
         assert!(terminal.session.try_wait().unwrap().is_none());
+    }
+
+    #[test]
+    fn spawn_in_uses_requested_directory() {
+        let cwd = std::env::temp_dir().canonicalize().unwrap();
+        let session = Session::spawn_in(Path::new("/bin/sh"), 24, 80, &cwd).unwrap();
+        let mut terminal = Terminal::with_session(session);
+        assert_eq!(terminal.session.cwd(), Some(cwd.clone()));
+        terminal.send("pwd -P; printf '__%s__\\n' DIRECTORY\n");
+        let output = terminal.until("__DIRECTORY__");
+        assert!(output.contains(cwd.to_str().unwrap()), "{output}");
+    }
+
+    #[test]
+    fn cwd_tracks_cd_and_rejects_unavailable_identity() {
+        let mut terminal = Terminal::new();
+        terminal.send("cd /; printf '__%s__\\n' CHANGED\n");
+        terminal.until("__CHANGED__");
+        assert_eq!(terminal.session.cwd(), Some(PathBuf::from("/")));
+
+        let pid = terminal.session.shell_pid;
+        let identity = terminal.session.known.remove(&pid).unwrap();
+        assert_eq!(terminal.session.cwd(), None);
+        let mut wrong_identity = identity;
+        wrong_identity.start.0 = wrong_identity.start.0.wrapping_add(1);
+        terminal.session.known.insert(pid, wrong_identity);
+        assert_eq!(terminal.session.cwd(), None);
+        terminal.session.known.insert(pid, identity);
+
+        terminal.session.shell_pid = libc::pid_t::MAX;
+        terminal.session.known.insert(
+            libc::pid_t::MAX,
+            Process {
+                pid: libc::pid_t::MAX,
+                ..identity
+            },
+        );
+        let cwd = terminal.session.cwd();
+        terminal.session.shell_pid = pid;
+        terminal.session.known.remove(&libc::pid_t::MAX);
+        assert_eq!(cwd, None);
     }
 
     #[test]
@@ -449,12 +595,13 @@ mod tests {
     #[test]
     fn foreground_job_exits_and_ctrl_c_returns_to_shell() {
         let mut terminal = Terminal::new();
+        assert!(!terminal.session.has_foreground_job());
         terminal.send("/bin/sleep 0.05; printf '__%s__\\n' RETURNED\n");
         terminal.until("__RETURNED__");
         terminal.send("/bin/sleep 60\n");
         // Wait for the kernel's foreground group rather than guessing a delay.
         let deadline = Instant::now() + Duration::from_secs(5);
-        while terminal.session.master.process_group_leader() == Some(terminal.session.shell_pid) {
+        while !terminal.session.has_foreground_job() {
             assert!(Instant::now() < deadline, "job did not enter foreground");
             std::thread::sleep(Duration::from_millis(5));
         }
@@ -462,6 +609,7 @@ mod tests {
         terminal.send("printf '__%s__\\n' INTERRUPTED\n");
         terminal.until("__INTERRUPTED__");
         assert!(terminal.session.try_wait().unwrap().is_none());
+        assert!(!terminal.session.has_foreground_job());
     }
 
     #[test]
@@ -496,6 +644,8 @@ mod tests {
             std::thread::sleep(Duration::from_millis(5));
         };
         assert_eq!(status.exit_code(), 7);
+        assert!(!terminal.session.has_foreground_job());
+        assert_eq!(terminal.session.cwd(), None);
         drop(terminal);
         assert_gone(process);
     }
