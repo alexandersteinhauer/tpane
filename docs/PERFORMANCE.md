@@ -58,7 +58,23 @@ The hidden-output investigation at `3c9b585` located substantial system-call and
 
 Reducing successful-read yields to once every 64 reads was **rejected**. In a separate three-trial 24/8 comparison, throughput rose from 165.54 to 170.67 MiB/s but CPU rose from 130.40% to 140.47%; CPU per MiB worsened from 7.88 to 8.23 ms. Visible throughput fell from 120.69 to 109.34 MiB/s. Instrumented runs found 3.57× more WouldBlock results per MiB and smaller receive batches. These separate runs must not be mixed with the earlier matrix.
 
-Direct-readiness transport also failed to recover visible throughput. Neither it nor the yield change is part of the promoted implementation. Publication/allocation granularity and cross-thread handoffs remain possible investigation targets, not demonstrated fixes. No frame cap, sleep-based batching, extra I/O workers, or renderer optimization is claimed to solve this.
+Direct-readiness transport also failed to recover visible throughput. Neither it nor the yield change is part of the promoted implementation. No frame cap, sleep-based batching, extra I/O workers, or renderer optimization is claimed to solve this.
+
+## Transport event coalescing (current checkout)
+
+`transport.rs` now publishes one bus event per readiness drain instead of one per read. Each reader reads directly into an uninitialized 16 KiB event buffer until the buffer is full, readiness is exhausted, or a 64-read budget is hit; the per-read `to_vec` allocation is gone, and the reader yields once per published event rather than per successful read. One credit still bounds one event, so queued bytes per pane remain bounded by 16 events.
+
+A variant that also yielded between successful reads was measured and **rejected**: at 24 tabs the worker re-entered the reactor between reads, and output time rose from 3.1 s to 4.4 s (profiled) with no CPU win. The promoted form keeps the per-event yield only.
+
+Adjacent three-trial `just bench --variants tpane` runs on the same machine (32 MiB/tab, original binary vs current build; medians; this machine was not otherwise idle, so low-pane deltas are within noise):
+
+| Tabs | Output time | Throughput | App CPU | App CPU | Outer host CPU |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 0.253 → 0.257 s | 126.3 → 124.5 MiB/s | 0.384 → 0.386 s | 12.00 → 12.07 ms/MiB | 0.071 → 0.070 s |
+| 8 | 0.909 → 0.852 s | 281.6 → 300.6 MiB/s | 1.574 → 1.530 s | 6.15 → 5.98 ms/MiB | 0.175 → 0.162 s |
+| 24 | 3.424 → 2.817 s | 224.3 → 272.6 MiB/s | 5.048 → 4.614 s | 6.57 → 6.01 ms/MiB | 0.370 → 0.272 s |
+
+The 24-tab case improves output time about **18%** and app CPU about **8.6%**; eight tabs improve modestly; one tab is flat (little to coalesce, one extra `EAGAIN` probe per event). Per-thread libproc counters from sampled runs at 24 tabs: unix syscalls rose from 1381 to 2493 per MiB (the probes), while io-worker CPU fell from 3139 to 2697 ms; context switches stayed in the same range (158 → 190 per MiB). In the same-session `native,tpane` comparison, 24-tab tpane/native CPU was 2.04× and output time 1.13× (original comparison: 2.24× and 1.36×, different load window). Quiet key p95 moved in both directions within run-to-run machine noise (native-relative key p95 was 1.01–1.29×). Publication granularity is therefore a demonstrated, if modest, lever; renderer FFI cost remains the larger visible-workload target.
 
 ## Native / tpane / tmux / zellij
 
