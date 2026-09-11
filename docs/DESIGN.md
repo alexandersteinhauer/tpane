@@ -46,7 +46,8 @@ Independent I/O improves measured visible output over current-thread Tokio but d
 - Closing a subtree containing foreground jobs requires confirmation. Removing siblings preserves selected identity; removing the selected child selects the next sibling, falling back to the previous. Single-child groups remain; empty groups disappear. The last shell's exit ends tpane.
 - New login shells inherit the active terminal's working directory through macOS inspection when possible, otherwise the launch directory.
 - Resize all terminals, including hidden ones, subtracting ancestor and leaf bars. Clip deep bars to preserve at least one terminal row. Translate mouse coordinates to terminal-local rows; UI press/release events do not leak into children. Flush in-band resize replies even without child output.
-- Normal keyboard input, bracketed paste, and requested mouse reporting follow child terminal modes. Alt/Option requests local selection/scrolling. Drag release copies through `pbcopy`; child clipboard requests are not propagated.
+- `tab_keys.rs` consumes Option+digits before child input encoding. Sibling positions 1–9 (0 for 10) select from the root, then descend one level per press while Option is held. Kitty all-key/event reporting supplies modifier releases; hosts without standalone modifier events use a one-second inter-digit timeout. Repeats/releases are consumed, and context changes reset navigation. Numbered labels and mouse hit targets use the same tree order.
+- Other keyboard input, bracketed paste, and requested mouse reporting follow child terminal modes. Alt/Option requests local selection/scrolling. Drag release copies through `pbcopy`; child clipboard requests are not propagated.
 
 ## Lifecycle and readiness boundary
 

@@ -166,6 +166,14 @@ impl Tree {
         true
     }
 
+    /// Resolve a zero-based sibling position without depending on clipped bars.
+    pub fn tab_at(&self, group: Id, index: usize) -> Option<Id> {
+        match self.root.as_ref()?.find(group)? {
+            Node::Tabs { children, .. } => children.get(index).map(Node::id),
+            Node::Terminal(_) => None,
+        }
+    }
+
     pub fn remove(&mut self, target: Id) -> Vec<Id> {
         let mut removed = Vec::new();
         self.root = self
@@ -270,10 +278,8 @@ impl Bar {
                     x,
                     width,
                     active: index == *active,
-                    label: match child {
-                        Node::Terminal(id) => format!("Shell {id}"),
-                        Node::Tabs { id, .. } => format!("Tabs {id}"),
-                    },
+                    // The tenth tab uses Option+0; show the actual shortcut.
+                    label: if index == 9 { 0 } else { index + 1 }.to_string(),
                     close_x: if width >= 6 { Some(end - 3) } else { None },
                 });
             }
@@ -418,8 +424,10 @@ mod tests {
             (layout.terminal, layout.top, layout.rows, layout.cols),
             (Some(3), 3, 21, 80)
         );
-        assert_eq!(layout.bars[0].tabs[0].label, "Shell 1");
-        assert_eq!(layout.bars[0].tabs[1].label, "Tabs 20");
+        assert_eq!(layout.bars[0].tabs[0].label, "1");
+        assert_eq!(layout.bars[0].tabs[1].label, "2");
+        assert_eq!(layout.bars[1].tabs[0].label, "1");
+        assert_eq!(layout.bars[1].tabs[1].label, "2");
         assert!(!layout.bars[0].tabs[0].active);
         assert!(layout.bars[0].tabs[1].active);
         tree.select(10, 1);

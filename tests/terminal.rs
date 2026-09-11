@@ -279,11 +279,12 @@ finally:
             .map(|labels| {
                 let available = usize::from(self.cols - 3);
                 let mut row = String::new();
-                for (i, label) in labels.iter().enumerate() {
+                for i in 0..labels.len() {
                     let width = available * (i + 1) / labels.len() - available * i / labels.len();
                     let close = if width >= 6 { "[x]" } else { "" };
                     let text_width = width - close.len();
-                    let text: String = format!(" {label}").chars().take(text_width).collect();
+                    let number = if i == 9 { 0 } else { i + 1 };
+                    let text: String = format!(" {number}").chars().take(text_width).collect();
                     row.push_str(&format!("{text:<text_width$}{close}"));
                 }
                 row.push_str(&" ".repeat(available - row.len()));
@@ -816,6 +817,46 @@ fn recursive_tabs_restore_selected_descendants_and_prune_only_empty_groups() {
     host.dimensions("PRUNED_SIZE", 22);
     host.send(b"exit 17\n");
     host.wait_exit(17);
+}
+
+#[test]
+fn option_digits_select_nested_tabs_without_leaking_into_shells() {
+    let mut host = Host::new();
+    host.plus(0);
+    host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+    host.prepare_shell("SECOND");
+    host.plus(1);
+    host.bars(&[&["Shell 1", "Tabs 5"], &["Shell 2", "Shell 4"], &[]]);
+    host.prepare_shell("FOURTH");
+
+    // Kitty: Option down, 2 down/repeat/up, 1 down, Option up, 1 up.
+    // The repeat must not select nested 2, and releases must not reach a child.
+    host.send(
+        b"\x1b[57443;3u\x1b[50;3u\x1b[50;3:2u\x1b[50;3:3u\x1b[49;3u\x1b[57443;1:3u\x1b[49;1:3u",
+    );
+    host.until("keyboard selects nested first tab", |s| {
+        s.contains("__SECOND:") && !s.contains("__FOURTH:")
+    });
+    host.send(b"\x1b[57443;3u\x1b[49;3u\x1b[57443;1:3u\x1b[49;1:3u");
+    host.until("Option release resets to root", |s| {
+        s.contains("__SHELL:") && !s.contains("__SECOND:")
+    });
+
+    // Legacy hosts deliver ESC-prefixed Alt digits without release events.
+    host.send(b"\x1b2\x1b2");
+    host.until("legacy sequence selects nested second tab", |s| {
+        s.contains("__FOURTH:")
+    });
+    host.send(b"printf '__%s__\\n' SHORTCUT_INPUT_CLEAN\n");
+    host.until("shortcuts did not corrupt shell input", |s| {
+        s.contains("__SHORTCUT_INPUT_CLEAN__")
+    });
+    host.send(b"exit\n");
+    host.bars(&[&["Shell 1", "Tabs 5"], &["Shell 2"], &[]]);
+    host.send(b"exit\n");
+    host.bars(&[&["Shell 1"], &[]]);
+    host.send(b"exit\n");
+    host.wait_exit(0);
 }
 
 #[test]

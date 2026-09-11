@@ -14,6 +14,7 @@ mod pty;
 mod render;
 mod runtime;
 mod selection;
+mod tab_keys;
 mod transport;
 mod tree;
 
@@ -67,7 +68,7 @@ async fn run() -> Result<u8> {
     while let Some(arg) = args.next() {
         if arg == "--help" || arg == "-h" {
             println!(
-                "tpane — a terminal multiplexer powered by Ghostty\n\nUsage: tpane [--shell /path/to/shell]\n\n[+] adds a tab, [x] closes its subtree. No multiplexer keyboard shortcuts."
+                "tpane — a terminal multiplexer powered by Ghostty\n\nUsage: tpane [--shell /path/to/shell]\n\n[+] adds a tab, [x] closes its subtree. Option+1..9 (0 = 10) selects tabs; hold Option and type digits to descend into nested tabs."
             );
             return Ok(0);
         } else if arg == "--version" || arg == "-V" {

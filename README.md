@@ -1,6 +1,6 @@
 # tpane
 
-A minimal Rust terminal multiplexer for macOS, running inside Ghostty. It supports nested mouse-operated tabs, independent terminal state and scrollback, and shell job control. No server, detach/reattach, persistence, splits, or multiplexer keyboard shortcuts.
+A minimal Rust terminal multiplexer for macOS, running inside Ghostty. It supports nested numbered tabs with mouse and keyboard navigation, independent terminal state and scrollback, and shell job control. No server, detach/reattach, persistence, or splits.
 
 The application in `src/` uses Tokio with an independent I/O worker. This is the sole implementation, not an optional experiment. Daily-use hardening remains incomplete: [manual Ghostty/Neovim validation and parallel PTY stress findings](docs/VALIDATION.md) are still open.
 
@@ -28,9 +28,16 @@ SDKROOT=/path/to/MacOSX15.4.sdk ./scripts/cargo.sh build --release --locked
 - Click `[+]` on the empty bar to preserve the current terminal as tab one and open a selected second shell. Each child has its own empty bar for deeper nesting; group bars add siblings.
 - Click ancestor tabs to switch branches. Hidden terminals keep running; groups remember their selection. New shells inherit the active terminal's working directory when macOS process inspection permits, otherwise the launch directory.
 - Click `[x]` to close a subtree. Foreground jobs require `[Cancel]` / `[Close]` confirmation; idle shells and their background jobs close without confirmation. Single-child groups retain their bar; empty groups disappear.
-- Keyboard input goes to the child. Ctrl-C and shell job control work through its PTY. Exiting a program returns to its shell; exiting the last shell exits tpane.
+- **Option+1–9** selects the numbered top-level tab; **Option+0** selects tab 10. Hold Option and press successive digits to descend: **Option held, 2, 1** selects top-level tab 2, then its first nested tab. Release Option to start again at the top. Tab labels show only their number, without shell/group names: 1–9, then 0 for tab 10. Numbers are sibling positions, not shell IDs, and update when tabs close. Tabs beyond 10 remain mouse-accessible.
+- Other keyboard input goes to the child. Ctrl-C and shell job control work through its PTY. Exiting a program returns to its shell; exiting the last shell exits tpane.
 - Wheel-scroll up to 10,000 lines of history. Left-drag selects; release copies via `pbcopy`. Mouse-enabled applications receive mouse events; hold **Alt/Option** for local selection/scrolling if the host forwards that modifier.
 - Paste with Ghostty's normal action; tpane honors the child's bracketed-paste mode.
+
+### Ghostty keyboard setup
+
+Set `macos-option-as-alt = true` in your Ghostty configuration so Option+digits arrive as Alt+digits rather than composed symbols. Remove any conflicting Ghostty Option+digit keybindings. tpane requests Kitty all-key/event reporting to detect Option releases; verify this with your actual Ghostty version and keyboard layout.
+
+On hosts that do not report standalone Option events, enter successive **Alt/Option+digits within one second** of each other; pause for one second to start again at the top. Typing another key, pasting, mouse interaction, resizing, or a tree mutation also ends the sequence. Missing tab numbers do nothing, and holding a digit does not repeatedly descend when the host reports key repeats.
 
 ## Architecture and performance
 

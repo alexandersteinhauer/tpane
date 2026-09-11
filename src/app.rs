@@ -14,11 +14,13 @@ use crate::{
     bus::{Bus, Control, PtyEvent},
     pane::Pane,
     process_watch::ProcessWatch,
+    tab_keys::{Route, TabKeys},
     tree::{Action, Id, Layout, Tree},
 };
 
 pub struct App {
     tree: Tree,
+    tab_keys: TabKeys,
     panes: BTreeMap<Id, Pane>,
     shell: PathBuf,
     launch_directory: PathBuf,
@@ -70,6 +72,7 @@ impl App {
         )?;
         Ok(Self {
             tree,
+            tab_keys: TabKeys::default(),
             panes: BTreeMap::from([(1, pane)]),
             shell,
             launch_directory,
@@ -220,6 +223,7 @@ impl App {
         self.cols = cols.max(1);
         self.rows = rows.max(1);
         self.cell = cell;
+        self.tab_keys.reset();
         self.capture = None;
         self.layout_panes()?;
         self.dirty = true;
@@ -239,10 +243,39 @@ impl App {
 
     pub fn event(&mut self, event: Event) -> Result<()> {
         self.content_dirty = true;
+        if let Event::Key(key) = event {
+            match self.tab_keys.key(key, &self.tree, Instant::now()) {
+                Route::Forward => {}
+                Route::Consume => return Ok(()),
+                Route::Select(action) => {
+                    self.confirm = None;
+                    self.notice = None;
+                    if let Some(key) = self.notice_key.take() {
+                        self.timers.remove(&key);
+                    }
+                    self.capture = Some(Capture::Chrome);
+                    if let Err(error) = self.action(action) {
+                        self.notify(format!("Tabs: {error:#}"));
+                    }
+                    return Ok(());
+                }
+            }
+        } else if !matches!(
+            event,
+            Event::Mouse(MouseEvent {
+                kind: MouseEventKind::Moved,
+                ..
+            })
+        ) {
+            self.tab_keys.reset();
+        }
         match event {
             Event::Mouse(mouse) => self.mouse(mouse),
             Event::FocusGained | Event::FocusLost => {
                 self.focused = event == Event::FocusGained;
+                if !self.focused {
+                    self.tab_keys.focus_lost();
+                }
                 if let Some(id) = self.tree.active_terminal()
                     && let Err(error) = self.panes.get_mut(&id).unwrap().focus(self.focused)
                 {
@@ -327,6 +360,7 @@ impl App {
         let previous = self.tree.active_terminal();
         match action {
             Action::Add(target) => {
+                self.tab_keys.reset();
                 let cwd = previous
                     .and_then(|id| self.panes.get(&id)?.session.cwd())
                     .unwrap_or_else(|| self.launch_directory.clone());
@@ -389,6 +423,7 @@ impl App {
     }
 
     fn remove(&mut self, target: Id) -> Result<()> {
+        self.tab_keys.reset();
         let previous = self.tree.active_terminal();
         let removed = self.tree.remove(target);
         let mut sessions = Vec::new();

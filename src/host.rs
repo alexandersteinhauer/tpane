@@ -55,6 +55,8 @@ pub fn setup() -> Result<Vec<u8>> {
         PushKeyboardEnhancementFlags(
             KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
                 | KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+                // Standalone Option release delimits nested tab shortcuts.
+                | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
         )
     )?;
     bytes.extend_from_slice(b"\x1b[?7l\x1b[2J\x1b[H");
