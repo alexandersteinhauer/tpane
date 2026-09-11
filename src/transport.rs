@@ -24,7 +24,12 @@ use crate::{
 };
 
 const MAX_PENDING_INPUT: usize = 8 * 1024 * 1024;
-const CHUNK: usize = 16 * 1024;
+// Event size sets the per-event fixed costs (readiness re-arm, bus send,
+// credit cycle, allocation) relative to bytes moved. 64 KiB events measured
+// faster 24-pane flood output but slower interactive CPU because macOS
+// allocates above 32 KiB from its large-allocation zone; 32 KiB stays in the
+// small zone. Bounded by readiness exhaustion per event.
+pub const CHUNK: usize = 32 * 1024;
 const OUTPUT_CREDITS: usize = 16;
 // Bounds worst-case work per published event when a descriptor returns tiny
 // reads. At the PTY's usual ~1 KiB reads, CHUNK fills first.
@@ -286,7 +291,7 @@ impl Writer {
             remaining = &remaining[count..];
         }
         // All queued chunks except the tail are full, so tiny writes cannot
-        // create millions of allocations. At most 513 chunks including in-flight.
+        // create millions of allocations. At most 129 chunks including in-flight.
         drop(state);
         self.input.ready.notify_one();
         Ok(())

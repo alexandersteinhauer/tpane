@@ -70,8 +70,9 @@ impl Engine {
     }
 
     pub fn feed(&mut self, bytes: &[u8]) -> Result<()> {
+        // One bus event is one feed; the transport caps the event size.
         ensure!(
-            bytes.len() <= 16 * 1024,
+            bytes.len() <= crate::transport::CHUNK,
             "PTY output chunk exceeds processing budget"
         );
         self.terminal.vt_write(bytes);

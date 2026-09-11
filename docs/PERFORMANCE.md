@@ -62,7 +62,9 @@ Direct-readiness transport also failed to recover visible throughput. Neither it
 
 ## Transport event coalescing (current checkout)
 
-`transport.rs` now publishes one bus event per readiness drain instead of one per read. Each reader reads directly into an uninitialized 16 KiB event buffer until the buffer is full, readiness is exhausted, or a 64-read budget is hit; the per-read `to_vec` allocation is gone, and the reader yields once per published event rather than per successful read. One credit still bounds one event, so queued bytes per pane remain bounded by 16 events.
+`transport.rs` now publishes one bus event per readiness drain instead of one per read. Each reader reads directly into an uninitialized 32 KiB event buffer until the buffer is full, readiness is exhausted, or a 64-read budget is hit; the per-read `to_vec` allocation is gone, and the reader yields once per published event rather than per successful read. One credit still bounds one event, so queued bytes per pane remain bounded by 16 events.
+
+Event size was measured explicitly because it sets the per-event fixed costs (readiness re-arm, bus send, credit cycle, allocation) per byte moved. Against 16 KiB, eight-trial interleaved runs measured **32 KiB** at output time 1.3–3.2% faster at 1–8 tabs and flat at 24, with nvim-scroll CPU unchanged. **64 KiB** bought 24-pane flood output time down 5.8% and throughput up 6.2% but regressed interactive CPU about 5% (nvim-scroll) and 2% (1 tab): macOS allocates above 32 KiB from its large-allocation zone, taxing every event. An adaptive 16→64 KiB drain that grew only when full was **rejected**: reallocating the grown prefix cost more under flood than flat 64 KiB saved (24-pane output +3.2% versus the 16 KiB baseline's −5.8%) while helping nowhere else.
 
 A variant that also yielded between successful reads was measured and **rejected**: at 24 tabs the worker re-entered the reactor between reads, and output time rose from 3.1 s to 4.4 s (profiled) with no CPU win. The promoted form keeps the per-event yield only.
 
