@@ -4,7 +4,7 @@
 
 The sole application is now independent-I/O Tokio: caller-owned Ghostty/UI state plus one I/O worker. Promotion removes maintained variants; it does **not** establish that Tokio is faster in every workload or that the remaining overhead has been fixed.
 
-The tables below summarize historical release measurements from the final execution-model comparison, preserved at `cbeb68a` and checkpoint `691c180`. They are not new benchmark or test results for the promoted checkout. Measurements used an Apple M5 Pro / macOS 26.6.2, Rust 1.98.1, and the same pinned Ghostty engine. All three implementations were uncapped; three trials per case ran serially with the corrected benchmark reader, without concurrent builds/profiling. Values are medians; latency percentiles are computed per trial and then summarized by their median, not pooled.
+The tables below summarize historical release measurements from the final execution-model comparison, preserved at `8c143c6` and checkpoint `3c9b585`. They are not new benchmark or test results for the promoted checkout. Measurements used an Apple M5 Pro / macOS 26.6.2, Rust 1.98.1, and the same pinned Ghostty engine. All three implementations were uncapped; three trials per case ran serially with the corrected benchmark reader, without concurrent builds/profiling. Values are medians; latency percentiles are computed per trial and then summarized by their median, not pooled.
 
 The harness runs the binary in a PTY with deterministic Python children. Latency ends at delivery of the **complete host frame**, not physical Ghostty display. CPU includes all tpane threads but excludes driver/children; 100% is one core. Libproc task CPU units are checked against an independent process clock. There is no driver-overhead subtraction. Three trials on one machine do not establish universal superiority, statistical significance, or end-to-end Neovim latency.
 
@@ -54,7 +54,7 @@ At 24/8, independent I/O used about **44% more CPU** than current-thread Tokio f
 
 ## Follow-up: remaining overhead is not fixed
 
-The hidden-output investigation at `691c180` located substantial system-call and cross-thread wake/park work, with tiny reader/receiver transfers. Separate instrumentation found only 130 render calls versus 836,346 terminal-feed calls in the control; rendering was not the hidden-workload bottleneck. Stack samples and inclusive wall spans are diagnostic evidence, not exact CPU attribution or ordinary benchmark timings.
+The hidden-output investigation at `3c9b585` located substantial system-call and cross-thread wake/park work, with tiny reader/receiver transfers. Separate instrumentation found only 130 render calls versus 836,346 terminal-feed calls in the control; rendering was not the hidden-workload bottleneck. Stack samples and inclusive wall spans are diagnostic evidence, not exact CPU attribution or ordinary benchmark timings.
 
 Reducing successful-read yields to once every 64 reads was **rejected**. In a separate three-trial 24/8 comparison, throughput rose from 165.54 to 170.67 MiB/s but CPU rose from 130.40% to 140.47%; CPU per MiB worsened from 7.88 to 8.23 ms. Visible throughput fell from 120.69 to 109.34 MiB/s. Instrumented runs found 3.57× more WouldBlock results per MiB and smaller receive batches. These separate runs must not be mixed with the earlier matrix.
 
@@ -181,20 +181,20 @@ The current visible-output fixture varies request IDs across 1,024 log lines per
 
 ## Historical evidence
 
-Detailed investigations, raw JSON, profiles, invalid observations, patches, variant builders, and diagnostic scripts are preserved in git at **`691c180`**; **`cbeb68a`** is the earlier checkpoint before the hidden-I/O investigation. They are deliberately removed from the working tree to keep the checkout compact.
+Detailed investigations, raw JSON, profiles, invalid observations, patches, variant builders, and diagnostic scripts are preserved in git at **`3c9b585`**; **`8c143c6`** is the earlier checkpoint before the hidden-I/O investigation. They are deliberately removed from the working tree to keep the checkout compact.
 
 ```sh
 # Read an archived investigation without restoring obsolete files.
-git show 691c180:docs/IO_EXECUTION.md
-git show 691c180:docs/HIDDEN_IO.md
+git show 3c9b585:docs/IO_EXECUTION.md
+git show 3c9b585:docs/HIDDEN_IO.md
 
 # List or extract the detailed evidence outside this checkout.
-git ls-tree -r --name-only 691c180 docs/performance
+git ls-tree -r --name-only 3c9b585 docs/performance
 mkdir -p /tmp/tpane-performance-history
-git archive 691c180 docs/performance | tar -x -C /tmp/tpane-performance-history
+git archive 3c9b585 docs/performance | tar -x -C /tmp/tpane-performance-history
 
 # Recover the matching sources, harnesses and variant builders when needed.
-git worktree add --detach ../tpane-history 691c180
+git worktree add --detach ../tpane-history 3c9b585
 ```
 
 Key archived paths: `docs/performance/readiness/final/` for the tables, `docs/performance/hidden-io/` for the rejected yield experiment, and the earlier `frame-interval/`, `native-render-diagnosis/`, `tokio-native/`, and `async-pty/` investigations. Old capped or flawed-reader results are historical only. Invalid stale-binary and thread-CPU-unit artifacts remain labeled in the archive and are excluded from conclusions; use separate build targets when reproducing variants to avoid stale artifact reuse.

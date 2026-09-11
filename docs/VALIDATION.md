@@ -1,10 +1,10 @@
 # Terminal and nested-tab validation
 
-The independent-I/O Tokio application is now the sole implementation in `src/`. Promotion alone does not establish daily-use readiness. Historical results are archived at `691c180` (earlier checkpoint `cbeb68a`); see [PERFORMANCE.md](PERFORMANCE.md).
+The independent-I/O Tokio application is now the sole implementation in `src/`. Promotion alone does not establish daily-use readiness. Historical results are archived at `3c9b585` (earlier checkpoint `8c143c6`); see [PERFORMANCE.md](PERFORMANCE.md).
 
 ## Promotion checks (2026-09-11)
 
-On macOS 26.6.2 / Apple M5 Pro, Rust 1.98.1, in the async-only working tree based on `691c180`:
+On macOS 26.6.2 / Apple M5 Pro, Rust 1.98.1, in the async-only working tree based on `3c9b585`:
 
 - Formatting, locked release build, and Clippy for all targets with `-D warnings`: passed.
 - `cargo test --locked -- --test-threads=1`: **56 unit + 21 integration tests passed**.
