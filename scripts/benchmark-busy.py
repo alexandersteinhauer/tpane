@@ -30,7 +30,7 @@ import tty
 
 sys.dont_write_bytecode = True
 from benchmark import (TaskCPU, HostStream, READY, cleanup, command_output,
-                       digest, percentile, process_table)
+                       digest, percentile, process_table, select_pane, TPANE_NEW_SIBLING)
 
 
 class CheckedStream(HostStream):
@@ -51,10 +51,6 @@ class CheckedStream(HostStream):
 
 def marker(kind, pid, count):
     return re.compile(f"TPB_{kind}_{pid:010d}_{count:08d}_END".encode())
-
-
-def click(stream, column):
-    return stream.write(f"\x1b[<0;{column};1M\x1b[<0;{column};1m".encode())
 
 
 def run_trial(args, result, cpu, source):
@@ -78,7 +74,7 @@ def run_trial(args, result, cpu, source):
         children = set()
         try:
             tty.setraw(slave, termios.TCSANOW)
-            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
+            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 28, 100, 0, 0))
 
             def controlling_terminal():
                 os.setsid()
@@ -95,7 +91,7 @@ def run_trial(args, result, cpu, source):
             result["executed_fixture_sha256"] = digest(stub)
             for pane in range(args.panes):
                 if pane:
-                    click(stream, 100)  # Root [+], never the active leaf's bar.
+                    stream.write(TPANE_NEW_SIBLING)
                 deadline = time.monotonic() + args.timeout
                 while True:
                     match, _ = stream.wait(READY, max(0, deadline - time.monotonic()))
@@ -103,7 +99,7 @@ def run_trial(args, result, cpu, source):
                     if pid not in children:
                         children.add(pid)
                         break
-                if (cols, rows) != (100, 29 if pane == 0 else 28):
+                if (cols, rows) != (100, 28):
                     raise RuntimeError(f"Unexpected viewport: {cols}x{rows}")
                 records.append({"pid": pid, "ready_viewport": [cols, rows]})
             actual = {pid for pid, parent in process_table() if parent == process.pid}
@@ -166,9 +162,7 @@ def run_trial(args, result, cpu, source):
             stats = result["producer_stats"] = []
             for index, pid in enumerate(producers):
                 stream.buffer = b""
-                # src/tree.rs divides the 97 cells before [+] equally. Click
-                # each tab's left edge, avoiding its right-edge close button.
-                selected = click(stream, 97 * index // args.panes + 1)
+                selected = select_pane(stream, index)
                 _, end = stream.wait(marker("DONE", pid, 1), args.timeout)
                 drains.append({"pid": pid, "selected_ns": selected, "done_frame_ns": end,
                                "selection_to_done_ms": (end - selected) / 1e6,
@@ -211,8 +205,8 @@ def main():
     args = parser.parse_args()
     if sys.platform != "darwin":
         parser.error("requires macOS libproc")
-    if not 1 <= args.busy < args.panes <= 97 or min(args.trials, args.keys) < 1 or args.keys >= 99999999:
-        parser.error("require 1 <= busy < panes <= 97, positive trials/keys, keys < 99999999")
+    if not 1 <= args.busy < args.panes or min(args.trials, args.keys) < 1 or args.keys >= 99999999:
+        parser.error("require 1 <= busy < panes, positive trials/keys, keys < 99999999")
     if not all(math.isfinite(v) and v > 0 for v in (args.seconds, args.timeout)):
         parser.error("seconds/timeout must be finite positive")
     args.binary = args.binary.resolve(strict=True)
@@ -246,7 +240,7 @@ def main():
                 "binary_sha256": digest(args.binary), "binary_size": args.binary.stat().st_size,
                 "fixture_sha256": digest(fixture), "harness_sha256": digest(Path(__file__)),
                 "shared_harness_sha256": digest(shared), "cpu_counter_validation": cpu.validation,
-                "outer_pty": [100, 30], "selected_viewport": [100, 28],
+                "outer_pty": [100, 28], "selected_viewport": [100, 28],
                 "environment_policy": "allowlist; isolated temporary HOME/cwd/XDG/TMPDIR; no real configs or clipboard",
                 "term": "xterm-256color", "colorterm": "truecolor", "locale": "C"},
             "method": {
@@ -257,7 +251,8 @@ def main():
                 "throughput": "sum successful producer payload write bytes / parent start-to-stop-signal seconds; INCLUDES PTY/application buffers, not processed/rendered throughput",
                 "producer_windows": "raw per-child signal handling timestamps/windows; signal delivery skew included; backend process CPU optional corroboration",
                 "clock": "perf_counter_ns origins are process-local on older macOS Python; compare durations, NEVER parent/child absolute timestamps",
-                "drain": "sequential root-tab selection after stop; DONE completed frame proves prior accepted bytes processed; stop-to-DONE includes selection and earlier panes' checks",
+                "drain": "sequential explorer selection after stop (NUL, Home to root, Down index+1, Enter); DONE completed frame proves prior accepted bytes processed; stop-to-DONE includes navigation and earlier panes' checks",
+                "navigation": "NUL then n creates/selects each root sibling and dismisses explorer; final leaf is responder; no persistent bars",
                 "hidden_check": "scan host wire for BUSY/DONE markers while responder selected; not a full VT screen emulator",
                 "payload": "64-byte ASCII lines including CRLF; <=16KiB pending per producer; unsent bytes discarded at stop",
                 "limitations": "Python production/driver scheduling/PTY transport affect results; no control over external load, thermals, power, or build flags",

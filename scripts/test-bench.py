@@ -241,9 +241,10 @@ class CPUTests(unittest.TestCase):
         process = Mock(pid=100)
         host = Mock(process=Mock(pid=400))
         host.send.return_value = 1000000000
+        ready_pids = iter((300, 301) if variant == "tmux" else (301,))
 
         def wait(pattern, timeout):
-            marker = (b"TPB_READY_0000000301_100x028_END"
+            marker = (f"TPB_READY_{next(ready_pids):010d}_100x028_END".encode()
                       if pattern is bench.READY else pattern.pattern)
             return pattern.fullmatch(marker), 1100000000
 
@@ -600,6 +601,49 @@ class NativeCaseTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Duplicate native READY"):
                 self.run_case(case)
             case.output.assert_not_called()
+
+    def test_tpane_chromeless_creation_and_final_selection_at_any_count(self):
+        for panes in (1, 10, 24, 100):
+            pids = tuple(range(100, 100 + panes))
+            children = {pid: (100, 28) for pid in pids}
+            with self.subTest(panes=panes), self.case(ready_pids=pids, children=children) as case:
+                case.cpu.snapshot.side_effect = None
+                case.cpu.snapshot.return_value = {"user_ns": 0, "system_ns": 0}
+                result = bench.run_case(case.args, {"tpane": Path("/fake/tpane")},
+                                        Path("/fake/host"), "tpane", panes, 1, case.cpu)
+            self.assertEqual(case.openpty.call_count, 1)
+            self.assertEqual(case.popen.call_count, 1)
+            self.assertEqual(case.host_factory.call_args.args[:4],
+                             (Path("/fake/host"), case.fds[0][0], 28, 0))
+            self.assertEqual(case.host.send.call_args_list,
+                             [call(b"\x00n")] * (panes - 1) + [call(b"x")])
+            ready_calls = [c for c in case.host.wait.call_args_list if c.args[0] is bench.READY]
+            self.assertEqual(len(ready_calls), panes)  # First pane is no longer skipped.
+            for generation in case.output.call_args_list:
+                self.assertEqual(generation.args[4], pids[-1])
+            self.assertEqual(result["outer_rows"], 28)
+            self.assertEqual(result["body_viewport"], [100, 28])
+            self.assertEqual(result["fixture_pids"], list(pids))
+            self.assertEqual(result["measured_pids"], [100, 400])
+
+    def test_tpane_redrawn_ready_does_not_count_as_new_sibling(self):
+        with self.case(ready_pids=(100, 100, 101, 101, 102)) as case:
+            case.cpu.snapshot.side_effect = None
+            case.cpu.snapshot.return_value = {"user_ns": 0, "system_ns": 0}
+            bench.run_case(case.args, {"tpane": Path("/fake/tpane")}, Path("/fake/host"),
+                           "tpane", 3, 1, case.cpu)
+        self.assertEqual(case.host.send.call_args_list, [call(b"\x00n"), call(b"\x00n"), call(b"x")])
+        self.assertEqual(case.output.call_args.args[4], 102)
+
+    def test_tpane_rejects_bar_reduced_viewport_even_for_first_child(self):
+        with self.case() as case, contextlib.redirect_stderr(io.StringIO()):
+            case.host.wait.side_effect = None
+            case.host.wait.return_value = (bench.READY.fullmatch(b"TPB_READY_0000000100_100x027_END"), 0)
+            with self.assertRaisesRegex(RuntimeError, "Wrong child viewport"):
+                bench.run_case(case.args, {"tpane": Path("/fake/tpane")}, Path("/fake/host"),
+                               "tpane", 3, 1, case.cpu)
+            case.output.assert_not_called()
+            case.host.send.assert_not_called()
 
     def test_wrong_child_record_count_rejected_before_output(self):
         for pids in ((100, 102), (100, 101, 102, 103)):

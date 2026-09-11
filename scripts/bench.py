@@ -30,7 +30,8 @@ import termios
 import time
 import tty
 
-from benchmark import TaskCPU, command_output, digest, percentile, process_table
+from benchmark import (TaskCPU, TPANE_NEW_SIBLING, command_output, digest,
+                       percentile, process_table)
 
 ROOT = Path(__file__).resolve().parent.parent
 VARIANTS = ("native", "tpane", "tmux", "zellij")
@@ -254,8 +255,8 @@ def run_case(args, binaries, host_binary, variant, panes, trial, cpu):
                "TPANE_BENCH_READY_DIR": str(root),
                "TPANE_BENCH_CONTROL": str(root / "control.sock"),
                "TPANE_BENCH_TIMEOUT": str(args.timeout)}
-        top = (1 if panes == 1 else 2) if variant == "tpane" else 0
-        rows = 28 + top
+        top = 0
+        rows = 28
         tmux_socket = root / "tmux.sock"
         session = root.name
         tmux = [str(binaries.get("tmux", "tmux")), "-S", str(tmux_socket)]
@@ -336,21 +337,24 @@ def run_case(args, binaries, host_binary, variant, panes, trial, cpu):
                     ready_by_pid[child_pid] = record
                 ready = ready_by_pid[(extra_processes[-1] if extra_processes else process).pid]
             elif variant in ("tpane", "tmux"):
+                ready_pids = set()
                 for index in range(panes):
-                    if variant == "tpane" and panes > 1 and index == 0:
-                        # The first terminal starts below one bar; subsequent
-                        # tabs are below two. The host watches the final body
-                        # row, so use the untimed fixture record for this one.
-                        wait_children(root, 1, args.timeout)
-                        continue
                     if index:
                         if variant == "tpane":
-                            host.send(b"\x1b[<0;100;1M\x1b[<0;100;1m")
+                            host.send(TPANE_NEW_SIBLING)
                         else:
                             subprocess.run(tmux + ["new-window", "-t", "bench",
                                                    "exec " + shlex.quote(str(fixture))],
                                            env=env, check=True, timeout=args.timeout)
-                    ready, _ = host.wait(READY, args.timeout)
+                    deadline = time.monotonic() + args.timeout
+                    while True:
+                        ready, _ = host.wait(READY, max(0, deadline - time.monotonic()))
+                        child_pid, cols, body_rows = map(int, ready.groups())
+                        if (cols, body_rows) != (100, 28):
+                            raise RuntimeError(f"Wrong child viewport: {ready.group()!r}")
+                        if child_pid not in ready_pids:
+                            ready_pids.add(child_pid)
+                            break
             else:
                 ready, _ = host.wait(READY, args.timeout)
             expected = panes
@@ -573,7 +577,8 @@ def main():
                              "completion": "Every child's ordered cursor-query response after DONE proves its terminal parsed all output, including hidden tabs; selected DONE also verified in host cells with synchronized output closed",
                              "ratios": "median of per-trial cost/native ratios at each pane count; higher is worse",
                              "warmup": "one full output workload per fresh case, excluded from measurements",
-                             "geometry": "every child verified 100x28 at output completion; tpane outer PTY enlarged for its tab bars",
+                             "geometry": "100x28 host and child viewport for every variant and pane count; no persistent bars",
+                             "tpane_navigation": "Ctrl+Space (NUL), n creates/selects each sibling and dismisses explorer; final leaf remains selected",
                              "limitations": ["finite concurrent output, not an indefinitely sustained flood",
                                              "native emulates N terminal instances, no graphical windows",
                                              "output frames may coalesce; no intermediate-frame equivalence",

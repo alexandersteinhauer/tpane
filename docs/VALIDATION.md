@@ -15,6 +15,18 @@ On macOS 26.6.2 / Apple M5 Pro, Rust 1.98.1, in the async-only working tree base
 
 Local logs and benchmark observations are under ignored `.tools/validation/async-promotion/`. These runs do not replace the manual checklist or resolve parallel PTY stress.
 
+## Chromeless explorer checks
+
+On the chromeless working tree:
+
+- Locked release build, formatting, and all-target Clippy with `-D warnings` passed.
+- An initial serial suite passed **82 unit + 26 integration tests**, with the same 26 integration tests also passing against the release binary.
+- A subsequent serial unit run passed **81 tests and failed `pty::tests::resize_reaches_slave`**, reporting `24 80` instead of `37 101`. The PTY implementation is unchanged; this matches the existing unresolved symptom, now observed serially as well. It was not rerun to obtain a green result.
+- After adding the black-box double-Option test, the serial debug integration run passed **26 of 27 tests** (including double-Option). `first_sibling_preserves_shell_state_and_inherits_active_cwd` timed out because `/bin/sh` printed `child setpgid ... Operation not permitted` between the size marker and the correct `24 80` value. This separate shell/job-control diagnostic remains unexplained; it is not evidence of an explorer geometry mismatch. The added double-Option test also passed against the release binary; final Clippy and formatting checks passed.
+- All **69 Python harness/producer tests** passed. Native/tpane smoke benchmarks passed at **1/3/12 sessions**, one trial, 1 MiB per session, three keys. These small runs verify harness operation, not performance claims.
+- The numeric-label/Unicode refresh adds positional renumbering and grapheme/cell-width clipping tests; all **15 explorer unit tests** passed. Integration snapshots now assert rounded borders, disclosure arrows, selected-row markers, and a single active-leaf dot. After updating those visual assertions, all **27 integration tests**, all-target Clippy, formatting, and the locked release build passed.
+- Gesture, modal navigation, viewport preservation, output composition, input isolation, and process cleanup have automated coverage. Real Ghostty double-Option behavior still requires the manual checks below.
+
 ## Automated checks
 
 ```sh
@@ -31,7 +43,7 @@ The suite does not use a real Ghostty window. The unchecked manual items below r
 
 ## Open stress-test finding
 
-Historical repeated parallel PTY unit-test runs—and the promotion check above—intermittently reported the old `24 80` size instead of `37 101` in `pty::tests::resize_reaches_slave`, immediately after login-shell startup. An initial PTY-write `EIO` was also observed once. These have not been traced to a verified cause. Serial and interactive resize integration runs pass, but that does not resolve the parallel failure.
+Historical repeated parallel PTY unit-test runs—and the promotion check above—intermittently reported the old `24 80` size instead of `37 101` in `pty::tests::resize_reaches_slave`, immediately after login-shell startup. An initial PTY-write `EIO` was also observed once. These have not been traced to a verified cause. Earlier serial and interactive resize integration runs passed; the chromeless validation above also reproduced the unit-test symptom serially. Neither observation resolves its cause.
 
 Separately, an isolated no-shell allocator test reproduced concurrent macOS PTY allocation failures (`Unknown error: -6`). Serializing allocation eliminated those failures in that experiment, so allocation is guarded within each process. This did **not** eliminate the intermittent shell resize-test failure and must not be presented as its fix.
 
@@ -80,19 +92,21 @@ Clipboard tests intentionally replace the current clipboard: save anything impor
 - [ ] Send SIGTERM to tpane from another terminal and confirm cleanup and host restoration.
 - [ ] Close the Ghostty window containing tpane and confirm the managed shell/jobs terminate.
 
-## Nested tabs
+## Chromeless session explorer
 
-- [ ] Click the initial `[+]`. Confirm the existing shell is preserved as tab one and a new shell is selected as tab two.
-- [ ] Change directory, add a tab, and check that the new shell starts in that directory.
-- [ ] Use each child terminal's empty bar to create two or more nesting levels. Confirm every visible ancestor bar can switch branches.
+- [ ] Double-tap Option and separately press Ctrl+Space. Verify both open the centered explorer in the actual Ghostty configuration; Option+digits and Option-selection must not accidentally open it.
+- [ ] Browse with arrows, then Esc. Verify the original session, cursor, scrollback, and full-size PTY viewport are unchanged; no modal keystrokes should reach the shell.
+- [ ] Press n in the initial explorer. Confirm the existing shell is preserved as tab one and a new shell is selected as tab two.
+- [ ] Change directory, add a session, and check that the new shell starts in that directory. Verify positional labels, explicit renaming (including wide/combining Unicode), and renumbering after removal.
+- [ ] Use N to create two or more nesting levels. Switch across branches with the explorer and with successive Option+digits.
 - [ ] Select a nested child, switch away through an ancestor, and switch back. The same descendant should be selected, with its screen and scrollback intact.
 - [ ] Run Neovim in one branch and a noisy command in another. Switch repeatedly; verify no mixed frames or lost input.
 - [ ] Resize while Neovim is visible and while it is hidden, then select it again. It should use the available content size without requiring a keystroke.
-- [ ] Use a mouse-enabled TUI under multiple bars. Clicking tabs must not reach the TUI; clicks inside its content must land on the correct row.
-- [ ] Select and copy text under multiple bars. Check drag/release near bar boundaries and verify copying still uses the correct terminal.
+- [ ] Open the explorer over a noisy mouse-enabled TUI. Output must not overwrite the dialog, and mouse events/paste must not reach the TUI. After dismissal, clicks must land on the correct full-viewport row.
+- [ ] Select and copy text before and after opening the explorer. Check drag/release across modal transitions and verify scrolling works immediately after dismissal.
 - [ ] Close a subtree containing a foreground job. Cancel once, verify every child is intact, then confirm and check that only that subtree's processes terminate.
 - [ ] Exit a hidden shell and confirm its tab disappears without disturbing the selected branch.
-- [ ] Close down to one child and verify the group retains its bar; close its last child and verify empty groups disappear.
-- [ ] Make the window shorter than the active nesting depth, then enlarge it. Terminal dimensions must remain valid and the bars should return.
+- [ ] Close down to one child and verify the group remains in the explorer; close its last child and verify empty groups disappear.
+- [ ] Create more sessions than fit in the dialog. Verify scrolling, Home/End, and access beyond ten siblings. Shrink to a tiny window and enlarge again; navigation and PTY dimensions must remain valid.
 
 Record failures with the Ghostty version, shell/editor version, terminal dimensions, exact command/input, and whether they reproduce outside tpane. See `README.md` for the documented process-cleanup limits.

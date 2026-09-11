@@ -1,8 +1,8 @@
 # tpane
 
-A minimal Rust terminal multiplexer for macOS, running inside Ghostty. It supports nested numbered tabs with mouse and keyboard navigation, independent terminal state and scrollback, and shell job control. No server, detach/reattach, persistence, or splits.
+A minimal Rust terminal multiplexer for macOS, running inside Ghostty. It supports nested sessions with a keyboard-driven explorer, independent terminal state and scrollback, and shell job control. The active terminal uses the entire viewport, with no persistent bars. No server, detach/reattach, persistence, or splits.
 
-The application in `src/` uses Tokio with an independent I/O worker. This is the sole implementation, not an optional experiment. Daily-use hardening remains incomplete: [manual Ghostty/Neovim validation and parallel PTY stress findings](docs/VALIDATION.md) are still open.
+The application in `src/` uses Tokio with an independent I/O worker. This is the sole implementation, not an optional experiment. Daily-use hardening remains incomplete: [manual Ghostty/Neovim validation and intermittent PTY resize findings](docs/VALIDATION.md) are still open.
 
 ## Build and run
 
@@ -25,17 +25,19 @@ SDKROOT=/path/to/MacOSX15.4.sdk ./scripts/cargo.sh build --release --locked
 ## Use
 
 - Starts `$SHELL` as a login shell, falling back to `/bin/zsh`. Override with `tpane --shell /bin/zsh`.
-- Click `[+]` on the empty bar to preserve the current terminal as tab one and open a selected second shell. Each child has its own empty bar for deeper nesting; group bars add siblings.
-- Click ancestor tabs to switch branches. Hidden terminals keep running; groups remember their selection. New shells inherit the active terminal's working directory when macOS process inspection permits, otherwise the launch directory.
-- Click `[x]` to close a subtree. Foreground jobs require `[Cancel]` / `[Close]` confirmation; idle shells and their background jobs close without confirmation. Single-child groups retain their bar; empty groups disappear.
-- **Option+1–9** selects the numbered top-level tab; **Option+0** selects tab 10. Hold Option and press successive digits to descend: **Option held, 2, 1** selects top-level tab 2, then its first nested tab. Release Option to start again at the top. Tab labels show only their number, without shell/group names: 1–9, then 0 for tab 10. Numbers are sibling positions, not shell IDs, and update when tabs close. Tabs beyond 10 remain mouse-accessible.
-- Other keyboard input goes to the child. Ctrl-C and shell job control work through its PTY. Exiting a program returns to its shell; exiting the last shell exits tpane.
+- **Double-tap Option** (two clean taps within 400 ms) or press **Ctrl+Space** to open the centered session explorer. The fallback reserves Ctrl+Space/NUL rather than forwarding it to the child.
+- **Up/Down** browses; **Left/Right** collapses/expands groups or moves to parent/child; **Home/End** jumps to the first/last entry. **Enter** switches to the selected session (or a group's remembered session). Browsing does not change the active terminal; **Esc** returns unchanged.
+- **n** creates a sibling; **Shift+N** creates a child. Adding a child to a terminal preserves it as the first member of a new group and selects the new shell. **r** edits a name, **Enter** saves, and **Esc** cancels editing. Default labels are positional numbers only (`1`, `1.1`, `1.2`, `2`); explicit names appear beside them. Saving an empty name restores the numeric label.
+- **d** closes the selected session or entire group. Foreground jobs require **Enter** confirmation or **Esc** cancellation; idle shells and their background jobs close without confirmation. Single-child groups remain; empty groups disappear.
+- Completing an action dismisses the explorer. It overlays live terminal output without resizing any PTY; paste and mouse input are ignored while it is open. Hidden terminals keep running and groups remember their selection. New shells inherit the active terminal's working directory when macOS process inspection permits, otherwise the launch directory.
+- **Option+1–9** selects the numbered top-level tab; **Option+0** selects tab 10. Hold Option and press successive digits to descend: **Option held, 2, 1** selects top-level tab 2, then its first nested tab. Release Option to start again at the top. Explorer entries show numbered paths in tree order, including `10` for the tenth sibling (its shortcut remains Option+0). Numbers are sibling positions, not shell IDs, and update when sessions close. Sessions beyond 10 remain accessible through the scrolling explorer.
+- Outside the explorer, other keyboard input goes to the child. Ctrl-C and shell job control work through its PTY. Exiting a program returns to its shell; exiting the last shell exits tpane.
 - Wheel-scroll up to 10,000 lines of history. Left-drag selects; release copies via `pbcopy`. Mouse-enabled applications receive mouse events; hold **Alt/Option** for local selection/scrolling if the host forwards that modifier.
 - Paste with Ghostty's normal action; tpane honors the child's bracketed-paste mode.
 
 ### Ghostty keyboard setup
 
-Set `macos-option-as-alt = true` in your Ghostty configuration so Option+digits arrive as Alt+digits rather than composed symbols. Remove any conflicting Ghostty Option+digit keybindings. tpane requests Kitty all-key/event reporting to detect Option releases; verify this with your actual Ghostty version and keyboard layout.
+Set `macos-option-as-alt = true` in your Ghostty configuration so Option+digits arrive as Alt+digits rather than composed symbols. Remove any conflicting Ghostty Option+digit keybindings. tpane requests Kitty all-key/event reporting to detect Option releases and clean double taps; verify this with your actual Ghostty version and keyboard layout. If standalone modifier events are unavailable, use Ctrl+Space to open the explorer. Ghostty must not intercept that binding. Removing the native window titlebar is a separate Ghostty configuration choice, not something tpane controls.
 
 On hosts that do not report standalone Option events, enter successive **Alt/Option+digits within one second** of each other; pause for one second to start again at the top. Typing another key, pasting, mouse interaction, resizing, or a tree mutation also ends the sequence. Missing tab numbers do nothing, and holding a digit does not repeatedly descend when the host reports key repeats.
 
@@ -81,13 +83,13 @@ python3 scripts/test-bench.py
 python3 scripts/test-bench-producer.py
 ```
 
-The promoted checkout passed Clippy, 56 unit + 21 integration tests serially, and the release integration suite. The default parallel run reproduced the known PTY resize failure; it remains unresolved. See [validation results and the real Ghostty checklist](docs/VALIDATION.md).
+Chromeless validation passed Clippy, release build, explorer/integration coverage, and benchmark smoke checks. The existing PTY resize test failure also reproduced during a later serial unit run; it remains unresolved. See [exact validation results and the real Ghostty checklist](docs/VALIDATION.md).
 
 ## Limits
 
-- Parallel PTY startup/resize stress failures remain unresolved. Manual validation with the actual Ghostty, shell, and Neovim configuration is required.
-- No tab overflow management, graphics/image protocols, clickable hyperlink UI, or child clipboard access. Deep bars are clipped to preserve at least one terminal row.
+- Intermittent PTY startup/resize failures remain unresolved, including a serial resize-test reproduction. Manual validation with the actual Ghostty, shell, and Neovim configuration is required.
+- The explorer uses Unicode borders and markers, and clips explicit names by grapheme/cell width. It currently supports keyboard navigation only, with no search. No graphics/image protocols, clickable hyperlink UI, or child clipboard access.
 - Selection lacks word/line selection and drag-edge autoscroll. Mouse coordinates are cell-based; keyboard layout/physical-key information is incomplete.
 - Unstyled cells use host defaults; indexed colors use Ghostty's library palette, not the host's imported theme configuration.
-- Tab/input errors appear in a dismissible top-bar notice rather than terminating unrelated terminals.
+- Nonfatal tab/input error presentation is deferred in the chromeless UI.
 - Cleanup discovers terminal-session members and descendants, but cannot guarantee termination of fully detached/reparented daemons, privileged children, or kernel-stuck processes. SIGKILL cannot restore the host or run cleanup.

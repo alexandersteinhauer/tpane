@@ -32,7 +32,13 @@ impl Renderer {
         terminal: &Terminal<'static, '_>,
         output: &mut impl Write,
     ) -> Result<()> {
-        self.draw_at(terminal, output, 0, false)
+        let mut frame = Vec::new();
+        self.draw_at(terminal, &mut frame, 0, false)?;
+        if !frame.is_empty() {
+            frame.extend_from_slice(b"\x1b[?2026l");
+            output.write_all(&frame)?;
+        }
+        Ok(())
     }
 
     pub fn draw_at(
@@ -112,7 +118,7 @@ impl Renderer {
                 shape
             )?;
         }
-        self.buffer.extend_from_slice(b"\x1b[?2026l");
+        // App commits synchronized output only after composing its overlay.
         output.write_all(&self.buffer)?;
         output.flush()?;
         snapshot.set_dirty(Dirty::Clean)?;

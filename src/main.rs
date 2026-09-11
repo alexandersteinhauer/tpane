@@ -3,7 +3,9 @@ compile_error!("tpane currently supports macOS only");
 
 mod app;
 mod bus;
+mod command_keys;
 mod engine;
+mod explorer;
 mod host;
 mod host_input;
 mod input;
@@ -68,7 +70,7 @@ async fn run() -> Result<u8> {
     while let Some(arg) = args.next() {
         if arg == "--help" || arg == "-h" {
             println!(
-                "tpane — a terminal multiplexer powered by Ghostty\n\nUsage: tpane [--shell /path/to/shell]\n\n[+] adds a tab, [x] closes its subtree. Option+1..9 (0 = 10) selects tabs; hold Option and type digits to descend into nested tabs."
+                "tpane — a terminal multiplexer powered by Ghostty\n\nUsage: tpane [--shell /path/to/shell]\n\nDouble-tap Option or press Ctrl+Space to open Sessions. Arrows browse; Enter switches; n adds a sibling, N adds a child, r renames, d closes; Esc returns to the terminal. Option+1..9 (0 = 10) selects tabs; hold Option and type digits to descend."
             );
             return Ok(0);
         } else if arg == "--version" || arg == "-V" {

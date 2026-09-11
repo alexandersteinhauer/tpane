@@ -92,7 +92,8 @@ others: N child PTYs -> multiplexer -> outer host PTY -> C libghostty host
 The C host drains the outer PTY directly in bounded reads. Python only initiates
 work and receives completion notifications, not the output byte stream. The same
 changing-log fixture runs in all four cases. Every child's current 100×28 viewport
-is verified at output completion; tpane's outer PTY has extra rows for its bars. tmux
+is verified at output completion; tpane now uses that same full-size outer PTY
+without reserved bar rows. Historical measurements above predate this UI change. tmux
 status and Zellij frames/bar/background plugins are disabled. Scrollback limits
 are 10,000. Fresh HOME/config/runtime directories and private mux sessions prevent
 user configuration or existing sessions from influencing the tests.

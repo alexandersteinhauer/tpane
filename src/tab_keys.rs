@@ -223,11 +223,11 @@ mod tests {
         let mut keys = TabKeys::default();
         let now = Instant::now();
         select(&mut keys, &mut tree, '0', now, 200, 109);
-        assert_eq!(tree.layout(200, 24).bars[0].tabs[9].label, "0");
+        assert_eq!(tree.tab_at(200, 9), Some(109));
         tree.remove(100);
         keys.reset();
         select(&mut keys, &mut tree, '1', now, 200, 101);
-        assert_eq!(tree.layout(200, 24).bars[0].tabs[0].label, "1");
+        assert_eq!(tree.tab_at(200, 0), Some(101));
         assert_eq!(keys.key(digit('1'), &Tree::default(), now), Route::Consume);
         keys.reset();
         assert_eq!(keys.key(digit('1'), &Tree::new(1), now), Route::Consume);

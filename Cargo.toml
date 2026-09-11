@@ -16,6 +16,8 @@ libghostty-vt = { version = "=0.2.1", default-features = false }
 portable-pty = "0.9"
 tokio = { version = "=1.53.1", features = ["rt-multi-thread", "sync", "time", "net", "macros", "signal", "process", "io-util"] }
 tokio-util = { version = "=0.7.19", features = ["time"] }
+unicode-segmentation = "=1.13.3"
+unicode-width = "=0.2.2"
 
 [profile.release]
 lto = "thin"

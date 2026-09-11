@@ -1,26 +1,33 @@
 use std::{
     collections::BTreeMap,
-    io::{self, Write},
+    io::Write,
     path::PathBuf,
     time::{Duration, Instant},
 };
 
 use anyhow::{Result, bail, ensure};
-use crossterm::event::{Event, MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::{Event, KeyCode, KeyEventKind, MouseEvent, MouseEventKind};
 use tokio::task::JoinSet;
 use tokio_util::time::{DelayQueue, delay_queue::Key};
 
 use crate::{
     bus::{Bus, Control, PtyEvent},
+    command_keys::{CommandKeys, Route as CommandRoute},
+    explorer::{Command, Explorer},
     pane::Pane,
     process_watch::ProcessWatch,
     tab_keys::{Route, TabKeys},
-    tree::{Action, Id, Layout, Tree},
+    tree::{Action, Id, Tree},
 };
 
 pub struct App {
     tree: Tree,
     tab_keys: TabKeys,
+    command_keys: CommandKeys,
+    explorer: Option<Explorer>,
+    names: BTreeMap<Id, String>,
+    // Modal action releases must not reach the newly focused terminal.
+    swallowed: Vec<KeyCode>,
     panes: BTreeMap<Id, Pane>,
     shell: PathBuf,
     launch_directory: PathBuf,
@@ -60,19 +67,22 @@ impl App {
         let (cols, rows) = (cols.max(1), rows.max(1));
         let launch_directory = std::env::current_dir()?;
         let tree = Tree::new(1);
-        let layout = tree.layout(cols, rows);
         let mut watch = ProcessWatch::new(bus.clone())?;
         let pane = Pane::new(
             &shell,
             &launch_directory,
             1,
-            (cols, layout.rows, cell),
+            (cols, rows, cell),
             bus.clone(),
             &mut watch,
         )?;
         Ok(Self {
             tree,
             tab_keys: TabKeys::default(),
+            command_keys: CommandKeys::default(),
+            explorer: None,
+            names: BTreeMap::new(),
+            swallowed: Vec::new(),
             panes: BTreeMap::from([(1, pane)]),
             shell,
             launch_directory,
@@ -224,6 +234,7 @@ impl App {
         self.rows = rows.max(1);
         self.cell = cell;
         self.tab_keys.reset();
+        self.command_keys.reset();
         self.capture = None;
         self.layout_panes()?;
         self.dirty = true;
@@ -231,12 +242,8 @@ impl App {
     }
 
     fn layout_panes(&mut self) -> Result<()> {
-        for (id, depth) in self.tree.terminal_depths() {
-            let top = depth.min(usize::from(self.rows.saturating_sub(1))) as u16;
-            self.panes
-                .get_mut(&id)
-                .unwrap()
-                .resize(self.cols, self.rows - top, self.cell)?;
+        for pane in self.panes.values_mut() {
+            pane.resize(self.cols, self.rows, self.cell)?;
         }
         Ok(())
     }
@@ -244,11 +251,36 @@ impl App {
     pub fn event(&mut self, event: Event) -> Result<()> {
         self.content_dirty = true;
         if let Event::Key(key) = event {
+            match self.command_keys.key(key, Instant::now()) {
+                CommandRoute::Toggle => {
+                    self.tab_keys.focus_lost();
+                    self.set_explorer(self.explorer.is_none());
+                    return Ok(());
+                }
+                CommandRoute::Consume => return Ok(()),
+                CommandRoute::Forward => {}
+            }
+            if key.kind == KeyEventKind::Press {
+                self.swallowed.retain(|code| *code != key.code);
+            } else if self.swallowed.contains(&key.code) {
+                if key.kind == KeyEventKind::Release {
+                    self.swallowed.retain(|code| *code != key.code);
+                    return Ok(());
+                }
+                if self.explorer.is_none() {
+                    return Ok(());
+                }
+            }
+            if self.explorer.is_some() && key.kind == KeyEventKind::Press {
+                self.swallowed.push(key.code);
+            }
             match self.tab_keys.key(key, &self.tree, Instant::now()) {
                 Route::Forward => {}
                 Route::Consume => return Ok(()),
                 Route::Select(action) => {
-                    self.confirm = None;
+                    if self.explorer.is_some() {
+                        self.set_explorer(false);
+                    }
                     self.notice = None;
                     if let Some(key) = self.notice_key.take() {
                         self.timers.remove(&key);
@@ -268,6 +300,39 @@ impl App {
             })
         ) {
             self.tab_keys.reset();
+            self.command_keys.reset();
+        }
+        if self.explorer.is_some() {
+            match event {
+                Event::Key(key) => {
+                    if let Some(target) = self.confirm {
+                        if key.kind == KeyEventKind::Press {
+                            match key.code {
+                                KeyCode::Esc => self.set_explorer(false),
+                                KeyCode::Enter => {
+                                    self.exit_code = 0;
+                                    self.remove(target)?;
+                                    self.set_explorer(false);
+                                }
+                                _ => {}
+                            }
+                        }
+                    } else if let Some(command) =
+                        self.explorer
+                            .as_mut()
+                            .unwrap()
+                            .key(key, &self.tree, &self.names)
+                        && let Err(error) = self.command(command)
+                    {
+                        self.notify(format!("Sessions: {error:#}"));
+                    }
+                    self.dirty = true;
+                    return Ok(());
+                }
+                // Never send modal input or drag releases into the child.
+                Event::Paste(_) | Event::Mouse(_) => return Ok(()),
+                _ => {}
+            }
         }
         match event {
             Event::Mouse(mouse) => self.mouse(mouse),
@@ -275,9 +340,14 @@ impl App {
                 self.focused = event == Event::FocusGained;
                 if !self.focused {
                     self.tab_keys.focus_lost();
+                    self.command_keys.reset();
                 }
                 if let Some(id) = self.tree.active_terminal()
-                    && let Err(error) = self.panes.get_mut(&id).unwrap().focus(self.focused)
+                    && let Err(error) = self
+                        .panes
+                        .get_mut(&id)
+                        .unwrap()
+                        .focus(self.focused && self.explorer.is_none())
                 {
                     self.notify(format!("Focus: {error:#}"));
                 }
@@ -296,61 +366,86 @@ impl App {
     }
 
     fn mouse(&mut self, mut mouse: MouseEvent) -> Result<()> {
-        let layout = self.tree.layout(self.cols, self.rows);
+        let terminal = self.tree.active_terminal();
         if matches!(mouse.kind, MouseEventKind::Down(_)) {
-            self.capture = Some(if mouse.row < layout.top {
-                Capture::Chrome
-            } else {
-                let Some(id) = layout.terminal else {
-                    return Ok(());
-                };
-                Capture::Terminal(id)
-            });
-            if mouse.kind == MouseEventKind::Down(MouseButton::Left) && mouse.row < layout.top {
-                if mouse.row == 0 && self.confirm.is_some() {
-                    if let Some(target) = self.confirm
-                        && confirm_yes(self.cols).is_some_and(|x| mouse.column >= x)
-                    {
-                        self.exit_code = 0;
-                        self.remove(target)?;
-                    } else {
-                        self.confirm = None;
-                        self.dirty = true;
-                    }
-                    return Ok(());
-                }
-                if mouse.row == 0 && self.notice.take().is_some() {
-                    self.dirty = true;
-                    return Ok(());
-                }
-                if let Some(action) = layout.hit(mouse.column, mouse.row) {
-                    self.confirm = None;
-                    if let Err(error) = self.action(action) {
-                        self.notify(format!("Tabs: {error:#}"));
-                    }
-                }
-                return Ok(());
-            }
+            self.capture = terminal.map(Capture::Terminal);
         }
         let target = match self.capture {
-            Some(Capture::Chrome) => None,
+            Some(Capture::Chrome)
+                if matches!(mouse.kind, MouseEventKind::Drag(_) | MouseEventKind::Up(_)) =>
+            {
+                None
+            }
             Some(Capture::Terminal(id)) => Some(id),
-            None if mouse.row >= layout.top => layout.terminal,
-            None => None,
+            Some(Capture::Chrome) | None => terminal,
         };
         if matches!(mouse.kind, MouseEventKind::Up(_)) {
             self.capture = None;
         }
         if let Some(id) = target
-            && layout.terminal == Some(id)
+            && terminal == Some(id)
         {
-            mouse.row = mouse
-                .row
-                .saturating_sub(layout.top)
-                .min(layout.rows.saturating_sub(1));
+            mouse.row = mouse.row.min(self.rows - 1);
             mouse.column = mouse.column.min(self.cols - 1);
             if let Err(error) = self.panes.get_mut(&id).unwrap().event(Event::Mouse(mouse)) {
                 self.notify(format!("Mouse: {error:#}"));
+            }
+        }
+        Ok(())
+    }
+
+    fn set_explorer(&mut self, open: bool) {
+        if open {
+            let explorer = Explorer::new(&self.tree);
+            self.explorer = explorer.selected(&self.tree).map(|_| explorer);
+        } else {
+            self.explorer = None;
+        }
+        self.confirm = None;
+        self.capture = Some(Capture::Chrome);
+        if let Some(id) = self.tree.active_terminal() {
+            let _ = self
+                .panes
+                .get_mut(&id)
+                .unwrap()
+                .focus(self.focused && !open);
+        }
+        // Force repaint on dismissal: the pane renderer does not own overlay cells.
+        self.dirty = true;
+    }
+
+    fn command(&mut self, command: Command) -> Result<()> {
+        match command {
+            Command::Dismiss => self.set_explorer(false),
+            Command::Switch(id) => {
+                let previous = self.tree.active_terminal();
+                self.tree.activate(id);
+                self.changed(previous)?;
+                self.set_explorer(false);
+            }
+            Command::AddSibling(id) => {
+                self.action(Action::Add(self.tree.parent(id).unwrap_or(id)))?;
+                self.set_explorer(false);
+            }
+            Command::AddChild(id) => {
+                self.action(Action::Add(id))?;
+                self.set_explorer(false);
+            }
+            Command::Close(id) => {
+                self.action(Action::Close(id))?;
+                if self.confirm.is_none() {
+                    self.set_explorer(false);
+                }
+            }
+            Command::Rename(id, name) => {
+                if self.tree.contains(id) {
+                    if name.is_empty() {
+                        self.names.remove(&id);
+                    } else {
+                        self.names.insert(id, name);
+                    }
+                }
+                self.set_explorer(false);
             }
         }
         Ok(())
@@ -371,12 +466,12 @@ impl App {
                     next.add(target, terminal, group),
                     "tab target no longer exists"
                 );
-                let layout = next.layout(self.cols, self.rows);
+                next.activate(terminal);
                 let pane = Pane::new(
                     &self.shell,
                     &cwd,
                     terminal,
-                    (self.cols, layout.rows, self.cell),
+                    (self.cols, self.rows, self.cell),
                     self.bus.clone(),
                     &mut self.watch,
                 )?;
@@ -412,7 +507,7 @@ impl App {
                 let _ = pane.focus(false);
             }
             if let Some(pane) = active.and_then(|id| self.panes.get_mut(&id))
-                && let Err(error) = pane.focus(self.focused)
+                && let Err(error) = pane.focus(self.focused && self.explorer.is_none())
             {
                 self.notify(format!("Focus: {error:#}"));
             }
@@ -424,6 +519,7 @@ impl App {
 
     fn remove(&mut self, target: Id) -> Result<()> {
         self.tab_keys.reset();
+        self.command_keys.reset();
         let previous = self.tree.active_terminal();
         let removed = self.tree.remove(target);
         let mut sessions = Vec::new();
@@ -439,7 +535,10 @@ impl App {
         if !sessions.is_empty() {
             self.cleanup.spawn_blocking(move || drop(sessions));
         }
-        self.confirm = None;
+        if self.confirm.is_some_and(|id| !self.tree.contains(id)) {
+            self.confirm = None;
+        }
+        self.names.retain(|id, _| self.tree.contains(*id));
         self.capture = Some(Capture::Chrome);
         self.changed(previous)
     }
@@ -460,32 +559,32 @@ impl App {
     }
 
     pub fn draw(&mut self, output: &mut impl Write) -> Result<bool> {
-        let layout = self.tree.layout(self.cols, self.rows);
-        let mut frame = Vec::new();
-        if self.dirty {
-            frame.extend_from_slice(b"\x1b[?2026h\x1b[?25l\x1b[0m\x1b[2J");
-            draw_bars(&layout, &mut frame)?;
-            if !layout.bars.is_empty() {
-                if self.confirm.is_some() {
-                    let text = if confirm_yes(self.cols).is_some() {
-                        format!(
-                            "{}[Cancel] [Close]",
-                            fit("Close running programs?", usize::from(self.cols - 16))
-                        )
-                    } else {
-                        "Enlarge to confirm; click to cancel".to_owned()
-                    };
-                    banner(&mut frame, self.cols, &text)?;
-                } else if let Some((message, _)) = &self.notice {
-                    banner(&mut frame, self.cols, message)?;
-                }
-            }
+        if !self.needs_render() {
+            return Ok(false);
         }
-        if let Some(id) = layout.terminal {
+        let mut frame = Vec::new();
+        if self.dirty || self.explorer.is_some() {
+            frame.extend_from_slice(b"\x1b[?2026h\x1b[?25l");
+        }
+        if self.dirty {
+            frame.extend_from_slice(b"\x1b[0m\x1b[2J");
+        }
+        if let Some(id) = self.tree.active_terminal() {
             self.panes
                 .get_mut(&id)
                 .unwrap()
-                .draw(&mut frame, layout.top, self.dirty)?;
+                .draw(&mut frame, 0, self.dirty)?;
+        }
+        // Repaint over each incremental terminal frame, not just UI changes.
+        if let Some(explorer) = &self.explorer {
+            explorer.draw(
+                &mut frame,
+                self.cols,
+                self.rows,
+                &self.tree,
+                &self.names,
+                self.confirm.is_some(),
+            )?;
         }
         if !frame.is_empty() {
             frame.extend_from_slice(b"\x1b[?2026l");
@@ -504,81 +603,9 @@ impl Drop for App {
     }
 }
 
-fn confirm_yes(cols: u16) -> Option<u16> {
-    (cols >= 16).then(|| cols - 7)
-}
-
-fn banner(output: &mut impl Write, cols: u16, text: &str) -> io::Result<()> {
-    write!(
-        output,
-        "\x1b[1;1H\x1b[0;30;43m{}\x1b[0m",
-        fit(text, usize::from(cols))
-    )
-}
-
-fn draw_bars(layout: &Layout, output: &mut impl Write) -> io::Result<()> {
-    for bar in &layout.bars {
-        write!(
-            output,
-            "\x1b[{};1H\x1b[0;37;48;5;238m{}",
-            bar.row + 1,
-            " ".repeat(usize::from(layout.cols))
-        )?;
-        for tab in &bar.tabs {
-            if tab.width == 0 {
-                continue;
-            }
-            let color = if tab.active {
-                "0;30;47"
-            } else {
-                "0;37;48;5;238"
-            };
-            let label_width = usize::from(tab.width) - if tab.close_x.is_some() { 3 } else { 0 };
-            write!(
-                output,
-                "\x1b[{};{}H\x1b[{color}m{}",
-                bar.row + 1,
-                tab.x + 1,
-                fit(&format!(" {}", tab.label), label_width)
-            )?;
-            if tab.close_x.is_some() {
-                output.write_all(b"[x]")?;
-            }
-        }
-        write!(
-            output,
-            "\x1b[{};{}H\x1b[0;30;46m{}\x1b[0m",
-            bar.row + 1,
-            bar.plus_x + 1,
-            if bar.plus_width == 3 { "[+]" } else { "+" }
-        )?;
-    }
-    Ok(())
-}
-
-fn fit(text: &str, width: usize) -> String {
-    let mut text: String = text
-        .chars()
-        .take(width)
-        .map(|ch| {
-            if ch.is_ascii() && !ch.is_control() {
-                ch
-            } else {
-                '?'
-            }
-        })
-        .collect();
-    text.extend(std::iter::repeat_n(' ', width.saturating_sub(text.len())));
-    text
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libghostty_vt::{
-        Terminal, TerminalOptions,
-        terminal::{Point, PointCoordinate},
-    };
 
     #[tokio::test(flavor = "current_thread")]
     async fn a_clean_render_does_not_count_as_a_presented_frame() {
@@ -591,61 +618,82 @@ mod tests {
         assert!(bytes.is_empty());
     }
 
-    #[test]
-    fn painted_controls_match_layout_hit_targets() {
-        let mut tree = Tree::new(1);
-        tree.add(1, 2, 3);
-        tree.add(2, 4, 5);
-        for cols in [1, 2, 3, 7, 17, 80] {
-            let layout = tree.layout(cols, 24);
-            let mut bytes = Vec::new();
-            draw_bars(&layout, &mut bytes).unwrap();
-            let mut host = Terminal::new(TerminalOptions {
-                cols,
-                rows: 24,
-                max_scrollback: 0,
-            })
+    #[tokio::test(flavor = "current_thread")]
+    async fn overlay_composes_before_frame_commit_and_dismissal_restores_terminal() {
+        let (bus, _data, _control) = crate::bus::channel();
+        let mut app = App::new(PathBuf::from("/bin/sh"), 80, 24, (0, 0), bus).unwrap();
+        app.panes
+            .get_mut(&1)
+            .unwrap()
+            .output(b"\x1b[2J\x1b[HBASE")
             .unwrap();
-            host.vt_write(b"\x1b[?7l");
-            host.vt_write(&bytes);
-            for bar in &layout.bars {
-                let x = bar.plus_x + u16::from(bar.plus_width == 3);
-                let cell = host
-                    .grid_ref(Point::Active(PointCoordinate {
-                        x,
-                        y: u32::from(bar.row),
-                    }))
-                    .unwrap()
-                    .cell()
-                    .unwrap();
-                assert_eq!(cell.codepoint().unwrap(), '+' as u32);
-                assert!(matches!(layout.hit(x, bar.row), Some(Action::Add(id)) if id == bar.owner));
-                for tab in &bar.tabs {
-                    if let Some(x) = tab.close_x {
-                        let cell = host
-                            .grid_ref(Point::Active(PointCoordinate {
-                                x: x + 1,
-                                y: u32::from(bar.row),
-                            }))
-                            .unwrap()
-                            .cell()
-                            .unwrap();
-                        assert_eq!(cell.codepoint().unwrap(), 'x' as u32);
-                        assert!(
-                            matches!(layout.hit(x + 1, bar.row), Some(Action::Close(id)) if id == tab.id)
-                        );
-                    }
-                }
+        let mut host = libghostty_vt::Terminal::new(libghostty_vt::TerminalOptions {
+            cols: 80,
+            rows: 24,
+            max_scrollback: 0,
+        })
+        .unwrap();
+        host.vt_write(b"\x1b[?7l");
+        for open in [false, true, true, false] {
+            if open != app.explorer.is_some() {
+                app.set_explorer(open);
             }
+            app.panes
+                .get_mut(&1)
+                .unwrap()
+                .output(b"\x1b[12;1Hlive output")
+                .unwrap();
+            app.content_dirty = true;
+            let mut bytes = Vec::new();
+            assert!(app.draw(&mut bytes).unwrap());
+            let commit = b"\x1b[?2026l";
+            assert_eq!(
+                bytes
+                    .windows(commit.len())
+                    .filter(|part| *part == commit)
+                    .count(),
+                1
+            );
+            assert!(bytes.ends_with(commit));
+            assert_eq!(String::from_utf8_lossy(&bytes).contains("Sessions"), open);
+            host.vt_write(&bytes);
         }
+        use libghostty_vt::terminal::{Point, PointCoordinate};
+        for (x, ch) in "live output".chars().enumerate() {
+            let cell = host
+                .grid_ref(Point::Active(PointCoordinate { x: x as u16, y: 11 }))
+                .unwrap()
+                .cell()
+                .unwrap();
+            assert_eq!(cell.codepoint().unwrap(), ch as u32);
+        }
+        app.shutdown().await;
     }
 
-    #[test]
-    fn banner_text_is_bounded_and_cannot_inject_terminal_sequences() {
-        assert_eq!(fit("hello", 3), "hel");
-        assert_eq!(fit("hi", 5), "hi   ");
-        assert_eq!(fit("\x1b[2J\n", 6), "?[2J? ");
-        assert_eq!(confirm_yes(80), Some(73));
-        assert_eq!(confirm_yes(15), None);
+    #[tokio::test(flavor = "current_thread")]
+    async fn explorer_browsing_and_cancel_preserve_selection() {
+        use crossterm::event::{KeyEvent, KeyModifiers};
+        let (bus, _data, _control) = crate::bus::channel();
+        let mut app = App::new(PathBuf::from("/bin/sh"), 80, 24, (0, 0), bus).unwrap();
+        app.command(Command::AddSibling(1)).unwrap();
+        let selected = app.tree.active_terminal();
+        app.set_explorer(true);
+        app.event(Event::Key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE)))
+            .unwrap();
+        assert_eq!(app.tree.active_terminal(), selected);
+        app.event(Event::Key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)))
+            .unwrap();
+        assert!(app.explorer.is_none());
+        assert_eq!(app.tree.active_terminal(), selected);
+        assert!(app.dirty);
+        // Even the release of a closing action is owned by the modal UI.
+        app.event(Event::Key(KeyEvent::new_with_kind(
+            KeyCode::Esc,
+            KeyModifiers::NONE,
+            KeyEventKind::Release,
+        )))
+        .unwrap();
+        assert!(!app.swallowed.contains(&KeyCode::Esc));
+        app.shutdown().await;
     }
 }

@@ -51,6 +51,27 @@ import tty
 
 SYNC_END = b"\x1b[?2026l"
 READY = re.compile(rb"TPB_READY_(\d{10})_(\d{3})x(\d{3})_END")
+# Legacy Ctrl+Space opens explorer on the active leaf; n creates/selects a
+# sibling and dismisses explorer. Repeating this keeps the tree flat.
+TPANE_NEW_SIBLING = b"\x00n"
+
+
+def select_pane(stream, index):
+    """Select a zero-based root sibling, including indices beyond Option+digit.
+
+    Explorer Home selects the root group (row 0); Down index+1 reaches the
+    leaf in creation order, scrolling as needed. Enter activates and dismisses.
+    """
+    if index < 0:
+        raise ValueError("pane index must be nonnegative")
+    start = stream.write(b"\x00\x1b[H")
+    remaining = index + 1
+    while remaining:
+        count = min(remaining, 256)  # Keep each PTY write below 1024 bytes.
+        stream.write(b"\x1b[B" * count)
+        remaining -= count
+    stream.write(b"\r")
+    return start
 
 
 class TaskInfo(ctypes.Structure):
@@ -169,7 +190,7 @@ class HostStream:
         if not data:
             raise RuntimeError("Outer PTY EOF")
         self.bytes_read += len(data)
-        # No terminal emulation or unbounded output capture. At 100x30 a frame
+        # No terminal emulation or unbounded output capture. At 100x28 a frame
         # is far smaller than this cap, including ANSI styles and split markers.
         self.buffer = (self.buffer + data)[-1024 * 1024:]
 
@@ -288,7 +309,7 @@ def run_trial(args, panes, index, cpu, fixture_source, think_ms):
         children = set()
         try:
             tty.setraw(slave, termios.TCSANOW)
-            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 30, 100, 0, 0))
+            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 28, 100, 0, 0))
 
             def controlling_terminal():
                 os.setsid()
@@ -304,8 +325,7 @@ def run_trial(args, panes, index, cpu, fixture_source, think_ms):
             ready_records = []
             for pane in range(panes):
                 if pane:
-                    # Add siblings under the root, never nest under selected tab.
-                    stream.write(b"\x1b[<0;100;1M\x1b[<0;100;1m")
+                    stream.write(TPANE_NEW_SIBLING)
                 deadline = time.monotonic() + args.timeout
                 while True:
                     match, stamp = stream.wait(READY, max(0, deadline - time.monotonic()))
@@ -313,14 +333,13 @@ def run_trial(args, panes, index, cpu, fixture_source, think_ms):
                     if pid not in children:
                         children.add(pid)
                         break
-                expected_rows = 30 - args.root_bar_rows if pane == 0 else 28
-                if (cols, rows) != (100, expected_rows):
+                if (cols, rows) != (100, 28):
                     raise RuntimeError(f"Unexpected child viewport {cols}x{rows}; "
-                                       f"expected 100x{expected_rows}")
+                                       "expected 100x28")
                 ready_records.append({"pid": pid, "cols": cols, "rows": rows})
             result.update({"tpane_pid": process.pid, "children": ready_records,
                            "startup_and_pane_creation_ms": (stamp - startup) / 1e6,
-                           "selected_viewport": [100, 30 - args.root_bar_rows if panes == 1 else 28],
+                           "selected_viewport": [100, 28],
                            "ps_before": command_output([
                                "/bin/ps", "-p", str(process.pid), "-o",
                                "pid=,ppid=,time=,comm="])})
@@ -420,8 +439,6 @@ def arguments():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--binary", required=True, type=Path)
     parser.add_argument("--panes", default="1,8,24")
-    parser.add_argument("--root-bar-rows", type=int, choices=(0, 1), default=1,
-                        help="use 0 only for the pre-tabs single-terminal baseline")
     parser.add_argument("--trials", type=int, default=3)
     parser.add_argument("--output", type=Path, help="JSON file; default stdout")
     parser.add_argument("--keys", type=int, default=60)
@@ -439,8 +456,6 @@ def arguments():
         parser.error("--panes must be comma-separated integers")
     if not args.panes or min(args.panes) < 1 or len(set(args.panes)) != len(args.panes):
         parser.error("--panes must contain unique positive counts")
-    if args.root_bar_rows == 0 and args.panes != [1]:
-        parser.error("the pre-tabs baseline supports only --panes 1")
     if min(args.trials, args.keys, args.burst_keys, args.output_bytes) < 1:
         parser.error("trials, keys, burst-keys and output-bytes must be positive")
     if args.burst_keys > 1024 or args.keys + args.burst_keys >= 100000000:
@@ -491,7 +506,7 @@ def main():
                 "binary_size": args.binary.stat().st_size,
                 "cpu_counter_validation": cpu.validation,
                 "harness_sha256": digest(Path(__file__)), "fixture_sha256": digest(fixture),
-                "outer_pty": {"cols": 100, "rows": 30, "pixel_width": 0, "pixel_height": 0},
+                "outer_pty": {"cols": 100, "rows": 28, "pixel_width": 0, "pixel_height": 0},
                 "host_term": "xterm-256color", "host_colorterm": "truecolor",
                 "environment_policy": "allowlist; temporary HOME/PWD/SHELL/XDG/TMPDIR; no user configs",
             },
@@ -505,11 +520,12 @@ def main():
                 "cpu_percent": "100% = one fully occupied core; may exceed 100%",
                 "ps": "before/after PID, PPID, aggregate CPU time, command; coarse corroboration only",
                 "order": "trial-major, pane counts in CLI order; fresh process per case",
+                "geometry": "100x28 host and child viewport at every pane count; no persistent bars",
+                "navigation": "Ctrl+Space (NUL), n creates/selects each sibling and dismisses explorer; final leaf remains selected",
                 "limitations": ["not physical display or Ghostty GUI latency",
                                 "driver scheduling, PTY transport and Python backend affect wall time",
                                 "finite-output throughput includes backend production and final render; frames may coalesce",
                                 "latency CPU includes 0-20ms seeded think times",
-                                "1 pane has 29 terminal rows; multiple panes have 28 (two bars)",
                                 "CPU sample boundaries include small libproc-call overhead",
                                 "no control over unrelated load, thermals, power state or binary build flags",
                                 "ps CPU time is coarse; ABI/thread count/monotonicity checked; timebase conversion checked against driver process_time_ns"],
