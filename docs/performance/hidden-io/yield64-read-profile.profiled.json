@@ -1,0 +1,586 @@
+{
+  "schema_version": 1,
+  "benchmark": "multi-busy-pane",
+  "status": "complete",
+  "options": {
+    "binary": "/Users/alex/Projects/tpane/.tools/perf/hidden-io/yield64-profiled",
+    "panes": 24,
+    "busy": 8,
+    "trials": 1,
+    "seconds": 5.0,
+    "keys": 20,
+    "timeout": 30,
+    "output": "/Users/alex/Projects/tpane/docs/performance/hidden-io/yield64-read-profile.profiled.json"
+  },
+  "environment": {
+    "utc_started": "2026-09-11T11:27:38.583686+00:00",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "macos": "26.6.2",
+    "machine": "arm64",
+    "logical_cpus": 18,
+    "python": "3.9.6 (default, May 22 2026, 11:13:45) \n[Clang 21.0.0 (clang-2100.1.1.101)]",
+    "python_executable": "/Library/Developer/CommandLineTools/usr/bin/python3",
+    "hardware_model": "Mac17,9",
+    "cpu_brand": "Apple M5 Pro",
+    "binary_sha256": "68dac900e62bfbc0aaeb6ac2886c92eb6d5499d9f7914ee7aa4db80abd3973a9",
+    "binary_size": 2808448,
+    "fixture_sha256": "8990bd0208b86a9ca43c45971f595408f69aabe06e5fe5401f9a1f4059a34cce",
+    "harness_sha256": "7490d637509d6c886274d58ced3c966f3bbda91beeaf69d2a936e9bb8c88d508",
+    "shared_harness_sha256": "69102e538b14991339fdb79915ca9c685f59de8a6f35904aeb9a07adc5f1d41c",
+    "cpu_counter_validation": {
+      "mach_timebase_numer": 125,
+      "mach_timebase_denom": 3,
+      "driver_libproc_cpu_ns": 61716833,
+      "driver_process_time_ns": 61724000,
+      "tolerance": "max(2ms, 5%); no busy-loop calibration"
+    },
+    "outer_pty": [
+      100,
+      30
+    ],
+    "selected_viewport": [
+      100,
+      28
+    ],
+    "environment_policy": "allowlist; isolated temporary HOME/cwd/XDG/TMPDIR; no real configs or clipboard",
+    "term": "xterm-256color",
+    "colorterm": "truecolor",
+    "locale": "C",
+    "binary_sha256_after": "68dac900e62bfbc0aaeb6ac2886c92eb6d5499d9f7914ee7aa4db80abd3973a9"
+  },
+  "method": {
+    "latency": "x write start -> ACK plus following ESC[?2026l; not physical display",
+    "schedule": "keys evenly spaced at interval midpoints; serial ACK waits; fail on window overrun",
+    "cpu": "libproc tpane PID total user+system Mach ticks, all threads; 100%=one core; excludes driver/backends",
+    "memory_threads": "raw CPU snapshots include RSS/virtual bytes/thread count at boundaries, not peaks",
+    "throughput": "sum successful producer payload write bytes / parent start-to-stop-signal seconds; INCLUDES PTY/application buffers, not processed/rendered throughput",
+    "producer_windows": "raw per-child signal handling timestamps/windows; signal delivery skew included; backend process CPU optional corroboration",
+    "clock": "perf_counter_ns origins are process-local on older macOS Python; compare durations, NEVER parent/child absolute timestamps",
+    "drain": "sequential root-tab selection after stop; DONE completed frame proves prior accepted bytes processed; stop-to-DONE includes selection and earlier panes' checks",
+    "hidden_check": "scan host wire for BUSY/DONE markers while responder selected; not a full VT screen emulator",
+    "payload": "64-byte ASCII lines including CRLF; <=16KiB pending per producer; unsent bytes discarded at stop",
+    "limitations": "Python production/driver scheduling/PTY transport affect results; no control over external load, thermals, power, or build flags",
+    "lock": "/tmp/tpane-benchmark-501.lock"
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "status": "complete",
+      "children": [
+        {
+          "pid": 56398,
+          "ready_viewport": [
+            100,
+            29
+          ]
+        },
+        {
+          "pid": 56400,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56401,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56402,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56403,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56404,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56405,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56406,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56408,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56409,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56410,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56411,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56412,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56413,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56414,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56415,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56416,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56417,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56418,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56420,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56421,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56422,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56423,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 56424,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        }
+      ],
+      "tpane_pid": 56395,
+      "executed_fixture_sha256": "0922cc47b4495c9859a0689107de1f75e60dadd6c158bf2c0fc1015ac986b975",
+      "producers": [
+        56398,
+        56400,
+        56401,
+        56402,
+        56403,
+        56404,
+        56405,
+        56406
+      ],
+      "responder": 56424,
+      "start_signal_window_ns": [
+        7220776500,
+        7220886791
+      ],
+      "latency_samples": [
+        {
+          "key": 1,
+          "scheduled_ns": 7345776500,
+          "write_ns": 7346156125,
+          "frame_ns": 7346510458,
+          "latency_ms": 0.354333
+        },
+        {
+          "key": 2,
+          "scheduled_ns": 7595776500,
+          "write_ns": 7599441583,
+          "frame_ns": 7599854541,
+          "latency_ms": 0.412958
+        },
+        {
+          "key": 3,
+          "scheduled_ns": 7845776500,
+          "write_ns": 7850888666,
+          "frame_ns": 7851090416,
+          "latency_ms": 0.20175
+        },
+        {
+          "key": 4,
+          "scheduled_ns": 8095776500,
+          "write_ns": 8097564166,
+          "frame_ns": 8097786625,
+          "latency_ms": 0.222459
+        },
+        {
+          "key": 5,
+          "scheduled_ns": 8345776500,
+          "write_ns": 8346676833,
+          "frame_ns": 8346945333,
+          "latency_ms": 0.2685
+        },
+        {
+          "key": 6,
+          "scheduled_ns": 8595776500,
+          "write_ns": 8596932500,
+          "frame_ns": 8597092958,
+          "latency_ms": 0.160458
+        },
+        {
+          "key": 7,
+          "scheduled_ns": 8845776500,
+          "write_ns": 8846650000,
+          "frame_ns": 8846936791,
+          "latency_ms": 0.286791
+        },
+        {
+          "key": 8,
+          "scheduled_ns": 9095776500,
+          "write_ns": 9100903375,
+          "frame_ns": 9101147291,
+          "latency_ms": 0.243916
+        },
+        {
+          "key": 9,
+          "scheduled_ns": 9345776500,
+          "write_ns": 9347258541,
+          "frame_ns": 9347433458,
+          "latency_ms": 0.174917
+        },
+        {
+          "key": 10,
+          "scheduled_ns": 9595776500,
+          "write_ns": 9597672083,
+          "frame_ns": 9597956083,
+          "latency_ms": 0.284
+        },
+        {
+          "key": 11,
+          "scheduled_ns": 9845776500,
+          "write_ns": 9849660583,
+          "frame_ns": 9849970791,
+          "latency_ms": 0.310208
+        },
+        {
+          "key": 12,
+          "scheduled_ns": 10095776500,
+          "write_ns": 10096354083,
+          "frame_ns": 10096646958,
+          "latency_ms": 0.292875
+        },
+        {
+          "key": 13,
+          "scheduled_ns": 10345776500,
+          "write_ns": 10347537875,
+          "frame_ns": 10347835666,
+          "latency_ms": 0.297791
+        },
+        {
+          "key": 14,
+          "scheduled_ns": 10595776500,
+          "write_ns": 10600882000,
+          "frame_ns": 10601068166,
+          "latency_ms": 0.186166
+        },
+        {
+          "key": 15,
+          "scheduled_ns": 10845776500,
+          "write_ns": 10850572458,
+          "frame_ns": 10850887666,
+          "latency_ms": 0.315208
+        },
+        {
+          "key": 16,
+          "scheduled_ns": 11095776500,
+          "write_ns": 11098019916,
+          "frame_ns": 11098210916,
+          "latency_ms": 0.191
+        },
+        {
+          "key": 17,
+          "scheduled_ns": 11345776500,
+          "write_ns": 11350200791,
+          "frame_ns": 11350421958,
+          "latency_ms": 0.221167
+        },
+        {
+          "key": 18,
+          "scheduled_ns": 11595776500,
+          "write_ns": 11599428333,
+          "frame_ns": 11599604666,
+          "latency_ms": 0.176333
+        },
+        {
+          "key": 19,
+          "scheduled_ns": 11845776500,
+          "write_ns": 11846218666,
+          "frame_ns": 11846530958,
+          "latency_ms": 0.312292
+        },
+        {
+          "key": 20,
+          "scheduled_ns": 12095776500,
+          "write_ns": 12099820166,
+          "frame_ns": 12099999875,
+          "latency_ms": 0.179709
+        }
+      ],
+      "steady": {
+        "start_ns": 7220776500,
+        "stop_signal_window_ns": [
+          12223600458,
+          12223703250
+        ],
+        "wall_seconds": 5.002823958,
+        "cpu_before": {
+          "sample_ns": 7220769041,
+          "user_ticks": 243338,
+          "system_ticks": 1086345,
+          "user_ns": 10139083,
+          "system_ns": 45264375,
+          "threads": 3,
+          "resident_bytes": 13533184,
+          "virtual_bytes": 445808738304
+        },
+        "cpu_after": {
+          "sample_ns": 12223721791,
+          "user_ticks": 65544176,
+          "system_ticks": 110546622,
+          "user_ns": 2731007333,
+          "system_ns": 4606109250,
+          "threads": 3,
+          "resident_bytes": 19546112,
+          "virtual_bytes": 445808738304
+        },
+        "cpu_user_seconds": 2.72086825,
+        "cpu_system_seconds": 4.560844875,
+        "cpu_total_seconds": 7.281713125,
+        "cpu_sample_wall_seconds": 5.00295275,
+        "cpu_percent_one_core": 145.54830894615182,
+        "host_bytes_read": 3240,
+        "p50_ms": 0.256208,
+        "p95_ms": 0.35726425000000006,
+        "producer_accepted_bytes": 924691456,
+        "producer_accepted_mib_per_second": 176.27134186429433,
+        "backend_cpu_seconds": 15.664249
+      },
+      "post_stop_ack_ms": 0.210125,
+      "hidden_output_check": "passed: no BUSY/DONE wire markers while hidden",
+      "drain_samples": [
+        {
+          "pid": 56398,
+          "selected_ns": 12223969625,
+          "done_frame_ns": 12224769666,
+          "selection_to_done_ms": 0.800041,
+          "stop_to_done_ms": 1.169208
+        },
+        {
+          "pid": 56400,
+          "selected_ns": 12224998208,
+          "done_frame_ns": 12225192333,
+          "selection_to_done_ms": 0.194125,
+          "stop_to_done_ms": 1.591875
+        },
+        {
+          "pid": 56401,
+          "selected_ns": 12225284666,
+          "done_frame_ns": 12225462708,
+          "selection_to_done_ms": 0.178042,
+          "stop_to_done_ms": 1.86225
+        },
+        {
+          "pid": 56402,
+          "selected_ns": 12225562416,
+          "done_frame_ns": 12225741708,
+          "selection_to_done_ms": 0.179292,
+          "stop_to_done_ms": 2.14125
+        },
+        {
+          "pid": 56403,
+          "selected_ns": 12225832625,
+          "done_frame_ns": 12226019041,
+          "selection_to_done_ms": 0.186416,
+          "stop_to_done_ms": 2.418583
+        },
+        {
+          "pid": 56404,
+          "selected_ns": 12226098500,
+          "done_frame_ns": 12226290583,
+          "selection_to_done_ms": 0.192083,
+          "stop_to_done_ms": 2.690125
+        },
+        {
+          "pid": 56405,
+          "selected_ns": 12226354416,
+          "done_frame_ns": 12226537541,
+          "selection_to_done_ms": 0.183125,
+          "stop_to_done_ms": 2.937083
+        },
+        {
+          "pid": 56406,
+          "selected_ns": 12226614291,
+          "done_frame_ns": 12226794666,
+          "selection_to_done_ms": 0.180375,
+          "stop_to_done_ms": 3.194208
+        }
+      ],
+      "producer_stats": [
+        {
+          "pid": 56398,
+          "generation": 1,
+          "accepted_bytes": 115385344,
+          "unwritten_discarded_bytes": 7168,
+          "start_ns": 1957861708,
+          "stop_ns": 6960690208,
+          "window_seconds": 5.0028285,
+          "backend_cpu_seconds": 1.955298
+        },
+        {
+          "pid": 56400,
+          "generation": 1,
+          "accepted_bytes": 115632128,
+          "unwritten_discarded_bytes": 6144,
+          "start_ns": 1881886958,
+          "stop_ns": 6884670125,
+          "window_seconds": 5.002783167,
+          "backend_cpu_seconds": 1.952846
+        },
+        {
+          "pid": 56401,
+          "generation": 1,
+          "accepted_bytes": 115681280,
+          "unwritten_discarded_bytes": 6144,
+          "start_ns": 1812251333,
+          "stop_ns": 6815090625,
+          "window_seconds": 5.002839292,
+          "backend_cpu_seconds": 1.9649
+        },
+        {
+          "pid": 56402,
+          "generation": 1,
+          "accepted_bytes": 115645440,
+          "unwritten_discarded_bytes": 9216,
+          "start_ns": 1729701708,
+          "stop_ns": 6732498333,
+          "window_seconds": 5.002796625,
+          "backend_cpu_seconds": 1.951408
+        },
+        {
+          "pid": 56403,
+          "generation": 1,
+          "accepted_bytes": 115633152,
+          "unwritten_discarded_bytes": 5120,
+          "start_ns": 1644771041,
+          "stop_ns": 6647330833,
+          "window_seconds": 5.002559792,
+          "backend_cpu_seconds": 1.968528
+        },
+        {
+          "pid": 56404,
+          "generation": 1,
+          "accepted_bytes": 115942400,
+          "unwritten_discarded_bytes": 7168,
+          "start_ns": 1569385416,
+          "stop_ns": 6571989208,
+          "window_seconds": 5.002603792,
+          "backend_cpu_seconds": 1.954704
+        },
+        {
+          "pid": 56405,
+          "generation": 1,
+          "accepted_bytes": 115189760,
+          "unwritten_discarded_bytes": 6144,
+          "start_ns": 1504936166,
+          "stop_ns": 6507663291,
+          "window_seconds": 5.002727125,
+          "backend_cpu_seconds": 1.951008
+        },
+        {
+          "pid": 56406,
+          "generation": 1,
+          "accepted_bytes": 115581952,
+          "unwritten_discarded_bytes": 7168,
+          "start_ns": 1441946916,
+          "stop_ns": 6444787375,
+          "window_seconds": 5.002840459,
+          "backend_cpu_seconds": 1.965557
+        }
+      ],
+      "drain_complete_ms": 3.194208
+    }
+  ],
+  "profile": {
+    "tool": "synchronous spans plus read/batch counters",
+    "performance_comparison_valid": false
+  }
+}

@@ -1,0 +1,24 @@
+--- a/src/transport.rs
++++ b/src/transport.rs
+@@ -113,6 +113,7 @@
+ async fn read_loop(master: Master, id: Id, tx: &mpsc::Sender<PtyEvent>) {
+     let credits = Arc::new(Semaphore::new(OUTPUT_CREDITS));
+     let mut buffer = [0; CHUNK];
++    let mut reads = 0;
+     loop {
+         // Credit includes events waiting for the shared bus and events retained
+         // by main after recv. Never reserve shared bus slots for idle panes.
+@@ -154,8 +155,11 @@
+         if tx.send(event).await.is_err() || terminal {
+             return;
+         }
+-        // AsyncFd can stay ready forever. Bound work even on a hot descriptor.
+-        tokio::task::yield_now().await;
++        reads += 1;
++        if reads == 64 {
++            reads = 0;
++            tokio::task::yield_now().await;
++        }
+     }
+ }
+ 

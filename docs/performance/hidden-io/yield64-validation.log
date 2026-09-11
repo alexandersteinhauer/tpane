@@ -1,0 +1,127 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.24
+   Compiling libc v0.2.189
+   Compiling log v0.4.34
+   Compiling cfg-if v1.0.4
+   Compiling thiserror v1.0.69
+   Compiling version_check v0.9.5
+   Compiling bitflags v2.13.2
+   Compiling unicode-segmentation v1.13.3
+   Compiling signal-hook v0.3.18
+   Compiling parking_lot_core v0.9.12
+   Compiling cfg_aliases v0.1.1
+   Compiling scopeguard v1.2.0
+   Compiling pin-project-lite v0.2.17
+   Compiling smallvec v1.16.0
+   Compiling anyhow v1.0.104
+   Compiling futures-core v0.3.34
+   Compiling nix v0.28.0
+   Compiling rustix v1.1.4
+   Compiling libghostty-vt-sys v0.2.1
+   Compiling lock_api v0.4.14
+   Compiling litrs v1.0.0
+   Compiling bytes v1.12.1
+   Compiling proc-macro2-diagnostics v0.10.1
+   Compiling convert_case v0.10.0
+   Compiling slab v0.4.12
+   Compiling futures-sink v0.3.34
+   Compiling shell-words v1.1.1
+   Compiling downcast-rs v1.2.1
+   Compiling futures-task v0.3.34
+   Compiling document-features v0.2.12
+   Compiling errno v0.3.14
+   Compiling mio v1.2.3
+   Compiling socket2 v0.6.5
+   Compiling serial2 v0.2.38
+   Compiling signal-hook-registry v1.4.8
+   Compiling parking_lot v0.12.5
+   Compiling signal-hook-mio v0.2.5
+   Compiling syn v2.0.119
+   Compiling syn v3.0.5
+   Compiling thiserror-impl v1.0.69
+   Compiling derive_more-impl v2.1.1
+   Compiling int-enum v1.2.0
+   Compiling derive_more v2.1.1
+   Compiling tokio-macros v2.7.2
+   Compiling futures-macro v0.3.34
+   Compiling tokio v1.53.1
+   Compiling futures-util v0.3.34
+   Compiling filedescriptor v0.8.3
+   Compiling crossterm v0.29.0
+   Compiling portable-pty v0.9.0
+   Compiling tokio-util v0.7.19
+   Compiling libghostty-vt v0.2.1
+   Compiling tpane v0.1.0 (/Users/alex/Projects/tpane/.tools/perf/hidden-io/yield64)
+    Finished `release` profile [optimized] target(s) in 41.11s
+   Compiling tpane v0.1.0 (/Users/alex/Projects/tpane/.tools/perf/hidden-io/yield64)
+    Finished `release` profile [optimized] target(s) in 6.89s
+     Running unittests src/main.rs (target/perf-hidden-io/release/deps/tpane-58546f0bca948581)
+
+running 8 tests
+test transport::tests::cancellation_before_first_poll_and_while_blocked_releases_fd_and_counts ... ok
+test transport::tests::direct_routing_held_pane_credits_and_eof_after_exact_output ... ok
+test transport::tests::dropping_writer_drains_fifo_and_dropping_bus_stops_idle_reader ... ok
+test transport::tests::large_partial_input_exact_bounded_including_inflight_without_flush ... ok
+test transport::tests::millions_of_tiny_writes_coalesce_into_bounded_metadata_and_preserve_fifo ... ok
+test transport::tests::read_error_is_on_data_bus_after_preceding_output ... ok
+test transport::tests::real_pty_hangup_is_ordered_eof_and_duplicate_is_cloexec ... ok
+test transport::tests::write_failure_once_on_control_clears_queue_and_reports_status ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 48 filtered out; finished in 0.09s
+
+busy trial 1/3: 24/8; keep machine idle
+busy trial 2/3: 24/8; keep machine idle
+busy trial 3/3: 24/8; keep machine idle
+busy trial 1/3: 8/4; keep machine idle
+busy trial 2/3: 8/4; keep machine idle
+busy trial 3/3: 8/4; keep machine idle
+Run on an otherwise idle machine; lock excludes only other harness copies.
+trial 1/3, panes=1
+trial 2/3, panes=1
+trial 3/3, panes=1
+busy trial 1/3: 24/8; keep machine idle
+busy trial 2/3: 24/8; keep machine idle
+busy trial 3/3: 24/8; keep machine idle
+busy trial 1/3: 8/4; keep machine idle
+busy trial 2/3: 8/4; keep machine idle
+busy trial 3/3: 8/4; keep machine idle
+Run on an otherwise idle machine; lock excludes only other harness copies.
+trial 1/3, panes=1
+trial 2/3, panes=1
+trial 3/3, panes=1
+busy trial 1/1: 24/8; keep machine idle
+[
+  {
+    "threads": [
+      {
+        "handle": 8381325920,
+        "name": "main",
+        "user_seconds": 1.7295,
+        "system_seconds": 0.764357,
+        "cpu_seconds": 2.493857
+      },
+      {
+        "handle": 6097596640,
+        "name": "tpane-io",
+        "user_seconds": 0.811362,
+        "system_seconds": 3.640809,
+        "cpu_seconds": 4.452171
+      },
+      {
+        "handle": 6099742944,
+        "name": "",
+        "user_seconds": 0.000369,
+        "system_seconds": 0.001476,
+        "cpu_seconds": 0.001845
+      }
+    ],
+    "thread_cpu_sum": 6.947873,
+    "process_cpu": 6.94784375,
+    "kernel_counter_deltas": {
+      "syscalls_mach": 160,
+      "syscalls_unix": 2210382,
+      "csw": 242976
+    }
+  }
+]
