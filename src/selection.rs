@@ -1,9 +1,4 @@
-use std::{
-    io::Write,
-    process::{Command, Stdio},
-};
-
-use anyhow::{Context, Result, ensure};
+use anyhow::Result;
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use libghostty_vt::{
     Terminal,
@@ -70,24 +65,6 @@ fn selected_text(terminal: &Terminal<'_, '_>) -> Result<Option<Vec<u8>>> {
     Ok(terminal
         .format_selection_alloc(None, FormatOptions::new().with_unwrap(true).with_trim(true))?
         .map(|bytes| bytes.to_vec()))
-}
-
-pub fn copy(text: &[u8]) -> Result<()> {
-    let mut child = Command::new("/usr/bin/pbcopy")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .context("start macOS clipboard helper")?;
-    let result = child
-        .stdin
-        .take()
-        .context("clipboard stdin unavailable")?
-        .write_all(text);
-    let status = child.wait()?;
-    result.context("write selection to clipboard")?;
-    ensure!(status.success(), "pbcopy exited with {status}");
-    Ok(())
 }
 
 #[cfg(test)]

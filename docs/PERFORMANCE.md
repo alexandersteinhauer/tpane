@@ -1,99 +1,103 @@
-# Event-loop performance investigation
+# Performance
 
-These are historical measurements with the original frame-rate cap. See [FRAME_INTERVAL.md](FRAME_INTERVAL.md) for its removal from both current implementations and fresh capped/uncapped comparisons.
+## Decision and measurement boundary
 
-## Scope and method
+The sole application is now independent-I/O Tokio: caller-owned Ghostty/UI state plus one I/O worker. Promotion removes maintained variants; it does **not** establish that Tokio is faster in every workload or that the remaining overhead has been fixed.
 
-The tab implementation is preserved in commit `d992ddf`. The pre-tabs reference is `01b06cc`. All measurements use optimized release binaries on the same Apple M5 Pro / macOS 26.6.2 machine, with Rust 1.98.1 and the same pinned Ghostty engine.
+The tables below summarize historical release measurements from the final execution-model comparison, preserved at `cbeb68a` and checkpoint `691c180`. They are not new benchmark or test results for the promoted checkout. Measurements used an Apple M5 Pro / macOS 26.6.2, Rust 1.98.1, and the same pinned Ghostty engine. All three implementations were uncapped; three trials per case ran serially with the corrected benchmark reader, without concurrent builds/profiling. Values are medians; latency percentiles are computed per trial and then summarized by their median, not pooled.
 
-`scripts/benchmark.py` runs the actual binary in a 100-column, 30-row PTY with an isolated, deterministic raw Python backend. It measures:
+The harness runs the binary in a PTY with deterministic Python children. Latency ends at delivery of the **complete host frame**, not physical Ghostty display. CPU includes all tpane threads but excludes driver/children; 100% is one core. Libproc task CPU units are checked against an independent process clock. There is no driver-overhead subtraction. Three trials on one machine do not establish universal superiority, statistical significance, or end-to-end Neovim latency.
 
-- Input write to delivery of the complete host frame containing its response: 80 samples with seeded 0–20 ms think times.
-- Catch-up after a 100-key burst submitted in one write.
-- A 2 MiB ASCII output workload, including delivery of its final frame.
-- Idle CPU over two seconds, and CPU consumed by each workload.
+## Measured tradeoffs
 
-Each primary case has three trials, with 1, 8, and 24 panes. Only the selected pane performs the workload; the others are idle. Runs are serial, never alongside compiler/test workloads. The pre-tabs reference supports only one pane and has 30 content rows rather than 29.
+### Visible changing output (32 MiB)
 
-CPU comes from macOS `proc_pidinfo(PROC_PIDTASKINFO)`, includes all tpane threads, and excludes the Python backend and driver. The harness converts Mach ticks using `mach_timebase_info` and checks its own counter against Python's independent process CPU clock. 100% means one full core, not the whole machine.
+| Implementation | Panes | MiB/s | App CPU ms/MiB |
+|---|---:|---:|---:|
+| Previous current-thread Tokio | 1 | 39.87 | 21.94 |
+| Independent-I/O Tokio | 1 | 112.60 | 13.23 |
+| Synchronous control | 1 | 145.59 | 9.74 |
+| Previous current-thread Tokio | 24 | 39.31 | 21.77 |
+| Independent-I/O Tokio | 24 | 118.70 | 12.67 |
+| Synchronous control | 24 | 153.52 | 9.60 |
+| Previous current-thread Tokio | 64 | 37.85 | 22.44 |
+| Independent-I/O Tokio | 64 | 108.44 | 13.34 |
+| Synchronous control | 64 | 149.27 | 10.23 |
 
-These are PTY-to-frame-delivery measurements, **not physical Ghostty display latency or an end-to-end Neovim benchmark**. Driver scheduling, backend production, power/thermal state, and unrelated machine load remain possible influences. No driver overhead is subtracted. JSON files retain all samples, CPU counters, binary/harness hashes, and environment details.
+At one pane, independent I/O improved throughput **2.82×** and reduced CPU per MiB about **40%** versus current-thread Tokio, but remained about **23% slower** than synchronous throughput. Rendering previously stopped both the UI and its current-thread I/O tasks. The worker lets bounded byte queues fill during synchronous UI work; the renderer itself was not optimized.
 
-## Verified regression
+### Quiet input and idle state
 
-Median single-pane finite-output throughput fell from **0.86 MiB/s before tabs to 0.20 MiB/s after tabs**, roughly 4.3× slower.
-
-The pre-tabs loop consumed up to four PTY chunks per pass. The tabbed loop consumed only one chunk per pane before waiting on host input for up to 4 ms, even when more child output was queued. This imposed a scheduling bottleneck independent of terminal parsing speed. It also repeatedly scanned idle children and performed render checks on a timer.
-
-## Changes
-
-- A dedicated blocking input reader feeds a bounded channel. Input and PTY workers wake the main thread when work arrives.
-- The main loop drains output in round-robin passes, bounded by 64 chunks or approximately 2 ms per turn, then checks input again. It does not deliberately sleep while output remains queued.
-- The idle loop parks until notified or until a render/maintenance deadline. Process-status checks are throttled to 100 ms; EOF still prompts checks. Shutdown signals are checked at most 100 ms later while idle.
-- Hidden output does not schedule repainting the active terminal.
-- Frame timing advances only when drawing actually emits a frame.
-
-The final point was caught by measurement, not assumed: the first event-driven prototypes improved output throughput but worsened median input latency to about 17 ms. An empty render check was advancing the frame timer just before the child response arrived. Initial results are retained in `sync-wake-initial.json` and `tokio-wake-initial.json` rather than discarded.
-
-## Tokio experiment
-
-`scripts/benchmark-tokio.sh` generates an isolated copy of the current sources, pins Tokio 1.53.1, runs the loop as a future on a current-thread runtime, and replaces thread parking with `Notify` plus an async timer. Queues, processing budgets, rendering, and blocking PTY workers stay identical. The normal executable and production dependencies are not replaced by this experiment.
-
-This tests **async event-loop orchestration**, not a complete `AsyncFd` PTY driver. A subsequent [AsyncFd PTY experiment](ASYNC_PTY.md) now compares actual asynchronous PTY tasks, memory/thread counts, and backpressure/shutdown behavior at up to 64 panes. Its results are separate from the orchestration-only results below.
-
-## Results and decision
-
-Final comparison is generated from the raw files in `docs/performance/` using `scripts/summarize-benchmark.py`. Reported values are medians across trials; p50/p95 columns are medians of each trial's percentile, not pooled percentiles. Small finite-output timings can be sensitive to the 16 ms frame boundary, so a separate 32 MiB workload compares sustained output for the two optimized candidates.
-
-### Primary comparison
-
-| Loop | Panes | Idle CPU, % of one core | Key p50, ms | Key p95, ms | 100-key burst, ms | 2 MiB output, MiB/s |
-|---|---:|---:|---:|---:|---:|---:|
-| Committed tabs baseline | 1 | 0.248 | 14.53 | 19.69 | 94.99 | 0.20 |
-| Synchronous wakeups | 1 | 0.013 | 0.60 | 16.82 | 18.92 | 59.85 |
-| Tokio wakeups | 1 | 0.027 | 2.00 | 17.62 | 19.80 | 114.75 |
-| Committed tabs baseline | 8 | 0.518 | 14.57 | 19.93 | 19.90 | 0.20 |
-| Synchronous wakeups | 8 | 0.025 | 1.00 | 17.86 | 18.37 | 120.95 |
-| Tokio wakeups | 8 | 0.034 | 1.78 | 17.52 | 20.91 | 107.13 |
-| Committed tabs baseline | 24 | 0.783 | 14.43 | 19.73 | 16.58 | 0.20 |
-| Synchronous wakeups | 24 | 0.046 | 1.11 | 16.65 | 17.09 | 60.57 |
-| Tokio wakeups | 24 | 0.055 | 1.95 | 17.74 | 18.69 | 117.48 |
-
-The small output workload completes in roughly one or two frame intervals on the optimized builds. For example, the three single-pane synchronous throughput samples are **123.64, 59.85, and 55.50 MiB/s**. Do not interpret the corresponding Tokio median as proof of a 2× async processing advantage: a final frame arriving on the next 16 ms boundary can halve this finite-workload rate. Burst results are likewise not uniformly better at every pane count.
-
-### Sustained 32 MiB output
-
-| Loop | Panes | Median MiB/s | Trial range, MiB/s | CPU ms/MiB |
+| Implementation | Panes | Key p50 / p95 ms | Threads | Idle CPU % |
 |---|---:|---:|---:|---:|
-| Synchronous wakeups | 1 | 131.98 | 100.90–163.59 | 8.02 |
-| Tokio wakeups | 1 | 139.45 | 131.64–141.45 | 8.45 |
-| Synchronous wakeups | 24 | 141.26 | 132.02–151.70 | 9.17 |
-| Tokio wakeups | 24 | 131.26 | 122.03–140.38 | 9.94 |
+| Current-thread Tokio | 1 | 0.11 / 0.18 | 2 | <0.001 |
+| Independent-I/O Tokio | 1 | 0.10 / 0.19 | 3 | <0.001 |
+| Synchronous control | 1 | 0.09 / 0.16 | 4 | 0.013 |
+| Current-thread Tokio | 64 | 0.11 / 0.17 | 2 | <0.001 |
+| Independent-I/O Tokio | 64 | 0.10 / 0.17 | 3 | <0.001 |
+| Synchronous control | 64 | 0.10 / 0.18 | 130 | 0.110 |
 
-**Decision: keep the synchronous, event-driven loop as the default.** Tokio has no consistent measured advantage here: it is about 6% ahead on median sustained throughput with one pane and about 7% behind with 24 panes, with overlapping trial ranges. The synchronous variant has lower measured idle CPU and lower median key latency in the primary cases. Three trials do not support a statistical claim that one runtime is universally faster.
+The async implementation avoids per-pane I/O threads. Below reporting precision is not literally zero CPU. At 64 panes, measured idle RSS was 28.08 MiB for independent I/O, 27.94 MiB for current-thread Tokio, and 29.89 MiB synchronously; snapshots are not peak memory. Intermediate pane counts are in the archive.
 
-The large improvement comes from removing deliberate waits while work is queued, batching input/output, avoiding idle repaint checks, and not charging empty renders against the frame timer—not from adding an async runtime. The p95 input tail remains around 17 ms because rendering is still limited to approximately 60 FPS.
+### Hidden busy producers, quiet foreground
 
-Both optimized variants have **4 threads with one pane and 50 with 24 panes**. This experiment does not test the potential thread/memory savings of a fully asynchronous PTY driver.
+| Implementation | Panes / busy | Accepted MiB/s | App CPU % | Key p95 ms |
+|---|---:|---:|---:|---:|
+| Current-thread Tokio | 8 / 4 | 130.05 | 77.79 | 0.32 |
+| Independent-I/O Tokio | 8 / 4 | 176.15 | 133.85 | 0.25 |
+| Synchronous control | 8 / 4 | 174.03 | 253.81 | 0.22 |
+| Current-thread Tokio | 24 / 8 | 158.30 | 87.82 | 0.41 |
+| Independent-I/O Tokio | 24 / 8 | 158.01 | 126.09 | 0.42 |
+| Synchronous control | 24 / 8 | 94.41 | 270.06 | 0.31 |
 
-## Reproduce
+At 24/8, independent I/O used about **44% more CPU** than current-thread Tokio for essentially equal accepted throughput. It still used substantially less CPU and delivered more aggregate output than the synchronous control. Accepted-byte throughput includes bounded buffering; each producer's ordered final DONE verification passed in those historical runs. These are not input-latency percentiles during visible flooding.
 
-Run on an otherwise idle machine. Do not run variants concurrently.
+## Follow-up: remaining overhead is not fixed
+
+The hidden-output investigation at `691c180` located substantial system-call and cross-thread wake/park work, with tiny reader/receiver transfers. Separate instrumentation found only 130 render calls versus 836,346 terminal-feed calls in the control; rendering was not the hidden-workload bottleneck. Stack samples and inclusive wall spans are diagnostic evidence, not exact CPU attribution or ordinary benchmark timings.
+
+Reducing successful-read yields to once every 64 reads was **rejected**. In a separate three-trial 24/8 comparison, throughput rose from 165.54 to 170.67 MiB/s but CPU rose from 130.40% to 140.47%; CPU per MiB worsened from 7.88 to 8.23 ms. Visible throughput fell from 120.69 to 109.34 MiB/s. Instrumented runs found 3.57× more WouldBlock results per MiB and smaller receive batches. These separate runs must not be mixed with the earlier matrix.
+
+Direct-readiness transport also failed to recover visible throughput. Neither it nor the yield change is part of the promoted implementation. Publication/allocation granularity and cross-thread handoffs remain possible investigation targets, not demonstrated fixes. No frame cap, sleep-based batching, extra I/O workers, or renderer optimization is claimed to solve this.
+
+## Run current benchmarks
+
+Build first, then run on an otherwise idle machine, serially. Do not run tests, compilers, profilers, or other variants concurrently. Use fresh output paths.
 
 ```sh
 ./scripts/cargo.sh build --release --locked
+python3 scripts/test-benchmark.py
 python3 scripts/benchmark.py --binary target/release/tpane \
-  --panes 1,8,24 --trials 3 --keys 80 --idle-seconds 2 --output sync.json
-
-./scripts/benchmark-tokio.sh
-python3 scripts/benchmark.py --binary .tools/perf/tpane-tokio-wake \
-  --panes 1,8,24 --trials 3 --keys 80 --idle-seconds 2 --output tokio.json
-
-python3 scripts/summarize-benchmark.py sync.json tokio.json
+  --panes 1,8,24 --trials 3 --keys 80 --idle-seconds 2 --output quiet.json
+python3 scripts/benchmark.py --binary target/release/tpane \
+  --panes 1,24,64 --trials 3 --keys 20 --idle-seconds .5 \
+  --output-bytes 33554432 --output visible.json
+python3 scripts/benchmark-busy.py --binary target/release/tpane \
+  --panes 8 --busy 4 --trials 3 --seconds 5 --output busy8.json
+python3 scripts/benchmark-busy.py --binary target/release/tpane \
+  --panes 24 --busy 8 --trials 3 --seconds 5 --output busy24.json
+python3 scripts/summarize-benchmark.py quiet.json visible.json
+python3 scripts/summarize-busy.py busy8.json busy24.json
 ```
 
-For the sustained comparison, use `--panes 1,24 --trials 3 --keys 20 --idle-seconds .5 --output-bytes 33554432` with each optimized binary. Build historical references from their commits in separate worktrees; pass `--panes 1 --root-bar-rows 0` for `01b06cc`.
+The current visible-output fixture varies request IDs across 1,024 log lines per block, incorporating the formerly separate changing-output experiment. It no longer emits a block of identical lines. Do not compare its throughput directly with historical repeated-line measurements. Exact historical reproduction requires the archived source/harness and workload details. Binary and harness hashes, raw samples, environment, and CPU/memory counters belong with each new result. Automated correctness and manual host validation remain separate: see [VALIDATION.md](VALIDATION.md).
 
-## Correctness boundary
+## Historical evidence
 
-Both the synchronous and Tokio integration suites passed all 18 tests after the event-loop changes, including hidden output, in-band resize, mouse input, and process cleanup. A regression test verifies that an empty draw is not counted as a presented frame. The existing intermittent `pty::tests::resize_reaches_slave` unit-test failure remains unresolved and was also observed during this investigation; performance results are not evidence that it is fixed. See `VALIDATION.md`.
+Detailed investigations, raw JSON, profiles, invalid observations, patches, variant builders, and diagnostic scripts are preserved in git at **`691c180`**; **`cbeb68a`** is the earlier checkpoint before the hidden-I/O investigation. They are deliberately removed from the working tree to keep the checkout compact.
+
+```sh
+# Read an archived investigation without restoring obsolete files.
+git show 691c180:docs/IO_EXECUTION.md
+git show 691c180:docs/HIDDEN_IO.md
+
+# List or extract the detailed evidence outside this checkout.
+git ls-tree -r --name-only 691c180 docs/performance
+mkdir -p /tmp/tpane-performance-history
+git archive 691c180 docs/performance | tar -x -C /tmp/tpane-performance-history
+
+# Recover the matching sources, harnesses and variant builders when needed.
+git worktree add --detach ../tpane-history 691c180
+```
+
+Key archived paths: `docs/performance/readiness/final/` for the tables, `docs/performance/hidden-io/` for the rejected yield experiment, and the earlier `frame-interval/`, `native-render-diagnosis/`, `tokio-native/`, and `async-pty/` investigations. Old capped or flawed-reader results are historical only. Invalid stale-binary and thread-CPU-unit artifacts remain labeled in the archive and are excluded from conclusions; use separate build targets when reproducing variants to avoid stale artifact reuse.

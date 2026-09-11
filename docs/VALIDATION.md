@@ -1,16 +1,43 @@
 # Terminal and nested-tab validation
 
-The automated suite runs without a real Ghostty window. The following manual checks are required before declaring the part-1 compatibility pass condition met. They are not marked as completed by implementation alone.
+The independent-I/O Tokio application is now the sole implementation in `src/`. Promotion alone does not establish daily-use readiness. Historical results are archived at `691c180` (earlier checkpoint `cbeb68a`); see [PERFORMANCE.md](PERFORMANCE.md).
+
+## Promotion checks (2026-09-11)
+
+On macOS 26.6.2 / Apple M5 Pro, Rust 1.98.1, in the async-only working tree based on `691c180`:
+
+- Formatting, locked release build, and Clippy for all targets with `-D warnings`: passed.
+- `cargo test --locked -- --test-threads=1`: **56 unit + 21 integration tests passed**.
+- All **21 integration tests also passed against the release binary** via `TPANE_TEST_BINARY`, and in a separate default-parallel debug integration run.
+- Benchmark driver regression tests: **5 passed**; the consolidated changing-output harness smoke test passed.
+- Default parallel `cargo test --locked`: **55 unit tests passed, one failed** (`pty::tests::resize_reaches_slave`, old `24 80` instead of `37 101`). Cargo stopped before integration tests. This is the same unresolved symptom documented before promotion, not a clean full-suite pass.
+- LLDB ran the parallel unit binary with a `rust_panic` breakpoint; all 56 passed without hitting it. The failure did not reproduce under the debugger, so no causal backtrace was obtained. The later backtrace command failed because the process had already exited normally; this is not evidence of a fix.
+
+Local logs and benchmark observations are under ignored `.tools/validation/async-promotion/`. These runs do not replace the manual checklist or resolve parallel PTY stress.
+
+## Automated checks
+
+```sh
+./scripts/cargo.sh fmt --check
+./scripts/cargo.sh build --release --locked
+./scripts/cargo.sh test --locked
+./scripts/cargo.sh clippy --all-targets --locked -- -D warnings
+python3 scripts/test-benchmark.py
+```
+
+Coverage includes terminal emulation/rendering, pane-tree behavior, input modes and selection, PTY transport, bounded input/output, frame ordering/backpressure, lifecycle/restoration, blocked-host shutdown, Neovim resize, and I/O progress while the Ghostty-owning caller is occupied. Black-box tests run the actual binary inside a PTY; they do not modify the real clipboard. Record command, revision, environment, and failures rather than treating historical test counts as a current pass.
+
+The suite does not use a real Ghostty window. The unchecked manual items below remain required with the actual shell/editor configuration.
 
 ## Open stress-test finding
 
-Repeated parallel PTY unit-test runs can intermittently report the old `24 80` size instead of `37 101` in `pty::tests::resize_reaches_slave`, immediately after login-shell startup. An initial PTY-write `EIO` was also observed once. These have not been traced to a verified cause; ordinary full-suite runs and the interactive resize integration tests pass, but that does not resolve the stress failures.
+Historical repeated parallel PTY unit-test runs—and the promotion check above—intermittently reported the old `24 80` size instead of `37 101` in `pty::tests::resize_reaches_slave`, immediately after login-shell startup. An initial PTY-write `EIO` was also observed once. These have not been traced to a verified cause. Serial and interactive resize integration runs pass, but that does not resolve the parallel failure.
 
 Separately, an isolated no-shell allocator test reproduced concurrent macOS PTY allocation failures (`Unknown error: -6`). Serializing allocation eliminated those failures in that experiment, so allocation is guarded within each process. This did **not** eliminate the intermittent shell resize-test failure and must not be presented as its fix.
 
-Before declaring part 3 complete, capture master/slave window sizes and shell signal activity across the failing resize to distinguish an application race from shell or platform behavior. Reproduce with repeated `./scripts/cargo.sh test --bin tpane pty::tests --locked` runs; do not replace this with reruns until green.
+Before declaring daily-use hardening complete, capture master/slave window sizes and shell signal activity across the failing resize to distinguish an application race from shell or platform behavior. Reproduce with repeated `./scripts/cargo.sh test --bin tpane pty::tests --locked` runs; do not replace this with reruns until green.
 
-## Build
+## Manual: build
 
 - [ ] Build using the commands in `README.md` and launch `./target/release/tpane` inside Ghostty.
 - [ ] Confirm the expected login shell starts in the launch directory.
@@ -32,7 +59,8 @@ Before declaring part 3 complete, capture master/slave window sizes and shell si
 - [ ] Resize down to a very small window and back; check cursor position and wrapping.
 - [ ] Run `stty size` after resizing and confirm it matches the available terminal dimensions.
 - [ ] Check 256 colors, truecolor, bold, italic, underline, inverse text, and cursor shape changes.
-- [ ] Run `yes`, resize while it runs, then interrupt it. Input and shutdown should remain responsive.
+- [ ] Run `yes`, resize while it runs, then interrupt it and enter another command. Input and shutdown should remain responsive.
+- [ ] Repeat with several hidden output producers while editing in Neovim; check input, tab switching, and output isolation. Automated paced-input benchmarks do not establish visible-flood latency.
 
 ## History and clipboard
 

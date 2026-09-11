@@ -13,7 +13,9 @@ use portable_pty::{
 };
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::io::{Read, Write};
+#[cfg(test)]
+use std::io::Read;
+use std::io::Write;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -161,14 +163,20 @@ impl Session {
         foreground <= 0 || foreground != self.shell_pid
     }
 
-    /// Readers own a duplicate descriptor. Callers must stop their reader worker
-    /// at EOF/error; dropping Session cannot directly close that duplicate.
+    #[cfg(test)]
     pub fn reader(&self) -> Result<Box<dyn Read + Send>> {
         self.master.try_clone_reader().context("cloning PTY reader")
     }
 
-    pub fn take_writer(&mut self) -> Result<Box<dyn Write + Send>> {
-        self.writer.take().context("PTY writer already taken")
+    /// The transport duplicates this descriptor and owns its asynchronous I/O.
+    pub fn raw_fd(&self) -> Result<std::os::fd::RawFd> {
+        self.master
+            .as_raw_fd()
+            .context("PTY has no file descriptor")
+    }
+
+    pub fn pid(&self) -> libc::pid_t {
+        self.shell_pid
     }
 
     #[cfg(test)]

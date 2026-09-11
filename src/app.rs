@@ -2,17 +2,19 @@ use std::{
     collections::BTreeMap,
     io::{self, Write},
     path::PathBuf,
-    thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
 use anyhow::{Result, bail, ensure};
 use crossterm::event::{Event, MouseButton, MouseEvent, MouseEventKind};
+use tokio::task::JoinSet;
+use tokio_util::time::{DelayQueue, delay_queue::Key};
 
 use crate::{
+    bus::{Bus, Control, PtyEvent},
     pane::Pane,
+    process_watch::ProcessWatch,
     tree::{Action, Id, Layout, Tree},
-    wake::Wake,
 };
 
 pub struct App {
@@ -26,14 +28,23 @@ pub struct App {
     cell: (u16, u16),
     dirty: bool,
     content_dirty: bool,
-    wake: Wake,
+    bus: Bus,
+    watch: ProcessWatch,
     focused: bool,
     capture: Option<Capture>,
     confirm: Option<Id>,
     notice: Option<(String, Instant)>,
-    cleanup: Vec<JoinHandle<()>>,
-    rotation: usize,
+    pub cleanup: JoinSet<()>,
+    pub timers: DelayQueue<Timeout>,
+    deadlines: BTreeMap<Id, Key>,
+    notice_key: Option<Key>,
     exit_code: u8,
+}
+
+#[derive(Clone, Copy)]
+pub enum Timeout {
+    Pane(Id),
+    Notice,
 }
 
 #[derive(Clone, Copy)]
@@ -43,18 +54,19 @@ enum Capture {
 }
 
 impl App {
-    pub fn new(shell: PathBuf, cols: u16, rows: u16, cell: (u16, u16), wake: Wake) -> Result<Self> {
+    pub fn new(shell: PathBuf, cols: u16, rows: u16, cell: (u16, u16), bus: Bus) -> Result<Self> {
         let (cols, rows) = (cols.max(1), rows.max(1));
         let launch_directory = std::env::current_dir()?;
         let tree = Tree::new(1);
         let layout = tree.layout(cols, rows);
+        let mut watch = ProcessWatch::new(bus.clone())?;
         let pane = Pane::new(
             &shell,
             &launch_directory,
-            cols,
-            layout.rows,
-            cell,
-            wake.clone(),
+            1,
+            (cols, layout.rows, cell),
+            bus.clone(),
+            &mut watch,
         )?;
         Ok(Self {
             tree,
@@ -67,82 +79,141 @@ impl App {
             cell,
             dirty: true,
             content_dirty: true,
-            wake,
+            bus,
+            watch,
             focused: true,
             capture: None,
             confirm: None,
             notice: None,
-            cleanup: Vec::new(),
-            rotation: 0,
+            cleanup: JoinSet::new(),
+            timers: DelayQueue::new(),
+            deadlines: BTreeMap::new(),
+            notice_key: None,
             exit_code: 0,
         })
     }
 
-    pub fn tick(&mut self) -> Result<(Option<u8>, bool)> {
-        self.cleanup.retain(|job| !job.is_finished());
-        if self
-            .notice
-            .as_ref()
-            .is_some_and(|(_, at)| at.elapsed() > Duration::from_secs(5))
-        {
-            self.notice = None;
-            self.dirty = true;
+    pub fn data(&mut self, event: PtyEvent) -> Result<()> {
+        match event {
+            PtyEvent::Output { id, bytes, _credit } => {
+                if let Some(pane) = self.panes.get_mut(&id) {
+                    let result = pane.output(&bytes);
+                    self.content_dirty |= self.tree.active_terminal() == Some(id);
+                    if let Err(error) = result {
+                        self.failed(id, error.to_string())?;
+                    }
+                }
+            }
+            PtyEvent::Eof(id) => {
+                if let Some(pane) = self.panes.get_mut(&id) {
+                    pane.eof();
+                }
+                self.settle(id)?;
+            }
+            PtyEvent::ReadError { id, error } => self.failed(id, error.to_string())?,
         }
-        let ids: Vec<_> = self.panes.keys().copied().collect();
-        let mut budget = 64;
-        let started = Instant::now();
-        let mut finished = BTreeMap::new();
-        let active = self.tree.active_terminal();
-        let more_work = loop {
-            let mut consumed = false;
-            for n in 0..ids.len() {
-                let id = ids[(self.rotation + n) % ids.len()];
-                if finished.contains_key(&id) {
-                    continue;
+        Ok(())
+    }
+
+    pub fn control(&mut self, event: Control) -> Result<()> {
+        match event {
+            Control::ChildExited(id) => {
+                if let Some(pane) = self.panes.get_mut(&id)
+                    && let Err(error) = pane.reap(&mut self.watch)
+                {
+                    self.failed(id, error.to_string())?;
                 }
-                let can_read = budget > 0 && started.elapsed() < Duration::from_millis(2);
-                match self.panes.get_mut(&id).unwrap().poll(can_read) {
-                    Ok(progress) => {
-                        if progress.consumed {
-                            budget -= 1;
-                            consumed = true;
-                            self.content_dirty |= Some(id) == active;
-                        }
-                        if let Some(code) = progress.exit {
-                            finished.insert(id, (code, None));
-                        }
-                    }
-                    Err(error) => {
-                        finished.insert(id, (1, Some(format!("Shell {id}: {error:#}"))));
+                self.settle(id)?;
+            }
+            Control::WriteError { id, error } => {
+                if let Some(pane) = self.panes.get_mut(&id) {
+                    if pane.session.try_wait()?.is_some() {
+                        pane.reap(&mut self.watch)?;
+                        self.settle(id)?;
+                    } else {
+                        self.failed(id, error.to_string())?;
                     }
                 }
             }
-            if !consumed {
-                break false;
+            Control::ClipboardFinished(result) => {
+                if let Err(error) = result {
+                    self.notify(format!("Clipboard: {error}"));
+                }
             }
-            if budget == 0 || started.elapsed() >= Duration::from_millis(2) {
-                break true;
+            Control::FrameWritten { .. } => {
+                unreachable!("host completion belongs to the coordinator")
             }
+        }
+        Ok(())
+    }
+
+    fn settle(&mut self, id: Id) -> Result<()> {
+        let Some(pane) = self.panes.get(&id) else {
+            return Ok(());
         };
-        self.rotation = if ids.is_empty() {
-            0
-        } else {
-            (self.rotation + 1) % ids.len()
-        };
-        for (id, (code, error)) in finished {
+        if let Some(code) = pane.closed() {
             self.exit_code = code;
-            self.remove(id)?;
-            if let Some(message) = error {
-                if self.tree.root.is_none() {
-                    bail!(message);
-                }
-                self.notify(message);
+            return self.remove(id);
+        }
+        if let Some(deadline) = pane.deadline() {
+            if let Some(key) = self.deadlines.get(&id) {
+                self.timers.reset_at(key, deadline.into());
+            } else {
+                let key = self.timers.insert_at(Timeout::Pane(id), deadline.into());
+                self.deadlines.insert(id, key);
             }
         }
-        Ok((
-            self.tree.root.is_none().then_some(self.exit_code),
-            more_work,
-        ))
+        Ok(())
+    }
+
+    pub fn timeout(&mut self, event: Timeout) -> Result<()> {
+        match event {
+            Timeout::Notice => {
+                self.notice_key = None;
+                self.notice = None;
+                self.dirty = true;
+            }
+            Timeout::Pane(id) => {
+                self.deadlines.remove(&id);
+                if let Some(pane) = self.panes.get_mut(&id)
+                    && pane.retry_due()
+                    && let Err(error) = pane.reap(&mut self.watch)
+                {
+                    self.failed(id, error.to_string())?;
+                }
+                self.settle(id)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn failed(&mut self, id: Id, message: String) -> Result<()> {
+        if !self.panes.contains_key(&id) {
+            return Ok(());
+        }
+        self.exit_code = 1;
+        self.remove(id)?;
+        if self.tree.root.is_none() {
+            bail!(message);
+        }
+        self.notify(format!("Shell {id}: {message}"));
+        Ok(())
+    }
+
+    pub fn exit_code(&self) -> Option<u8> {
+        self.tree.root.is_none().then_some(self.exit_code)
+    }
+
+    pub async fn shutdown(&mut self) {
+        let mut sessions = Vec::new();
+        for (_, pane) in std::mem::take(&mut self.panes) {
+            let _ = self.watch.unwatch(pane.session.pid());
+            sessions.push(pane.into_session());
+        }
+        if !sessions.is_empty() {
+            self.cleanup.spawn_blocking(move || drop(sessions));
+        }
+        while self.cleanup.join_next().await.is_some() {}
     }
 
     pub fn resize(&mut self, cols: u16, rows: u16, cell: (u16, u16)) -> Result<()> {
@@ -270,10 +341,10 @@ impl App {
                 let pane = Pane::new(
                     &self.shell,
                     &cwd,
-                    self.cols,
-                    layout.rows,
-                    self.cell,
-                    self.wake.clone(),
+                    terminal,
+                    (self.cols, layout.rows, self.cell),
+                    self.bus.clone(),
+                    &mut self.watch,
                 )?;
                 self.next_id += 2;
                 self.panes.insert(terminal, pane);
@@ -320,17 +391,18 @@ impl App {
     fn remove(&mut self, target: Id) -> Result<()> {
         let previous = self.tree.active_terminal();
         let removed = self.tree.remove(target);
-        let sessions: Vec<_> = removed
-            .into_iter()
-            .filter_map(|id| self.panes.remove(&id))
-            .map(Pane::into_session)
-            .collect();
+        let mut sessions = Vec::new();
+        for id in removed {
+            if let Some(key) = self.deadlines.remove(&id) {
+                self.timers.remove(&key);
+            }
+            if let Some(pane) = self.panes.remove(&id) {
+                let _ = self.watch.unwatch(pane.session.pid());
+                sessions.push(pane.into_session());
+            }
+        }
         if !sessions.is_empty() {
-            self.cleanup.push(
-                thread::Builder::new()
-                    .name("pane-cleanup".into())
-                    .spawn(move || drop(sessions))?,
-            );
+            self.cleanup.spawn_blocking(move || drop(sessions));
         }
         self.confirm = None;
         self.capture = Some(Capture::Chrome);
@@ -339,6 +411,11 @@ impl App {
 
     fn notify(&mut self, message: String) {
         self.notice = Some((message, Instant::now()));
+        if let Some(key) = self.notice_key {
+            self.timers.reset(&key, Duration::from_secs(5));
+        } else {
+            self.notice_key = Some(self.timers.insert(Timeout::Notice, Duration::from_secs(5)));
+        }
         self.confirm = None;
         self.dirty = true;
     }
@@ -389,9 +466,6 @@ impl App {
 impl Drop for App {
     fn drop(&mut self) {
         self.panes.clear();
-        for job in self.cleanup.drain(..) {
-            let _ = job.join();
-        }
     }
 }
 
@@ -471,9 +545,10 @@ mod tests {
         terminal::{Point, PointCoordinate},
     };
 
-    #[test]
-    fn a_clean_render_does_not_count_as_a_presented_frame() {
-        let mut app = App::new(PathBuf::from("/bin/sh"), 12, 4, (0, 0), Wake::new()).unwrap();
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_clean_render_does_not_count_as_a_presented_frame() {
+        let (bus, _data, _control) = crate::bus::channel();
+        let mut app = App::new(PathBuf::from("/bin/sh"), 12, 4, (0, 0), bus).unwrap();
         let mut bytes = Vec::new();
         assert!(app.draw(&mut bytes).unwrap());
         bytes.clear();

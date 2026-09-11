@@ -1,4 +1,0 @@
-# Preserve generated patch context and raw diagnostic output verbatim.
-*.patch -whitespace
-docs/performance/**/*.log -whitespace
-docs/performance/**/*.txt -whitespace

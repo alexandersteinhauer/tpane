@@ -25,7 +25,8 @@ def main():
     # Exactly 64 ASCII bytes per log line (including CRLF), prepared before READY.
     line = b"2025-01-01T12:34:56 INFO request=012345 status=200 bytes=4096"
     line = line.ljust(62, b" ") + b"\r\n"
-    block = line * 1024
+    # Vary visible content instead of benchmarking mostly identical redraws.
+    block = b"".join(line.replace(b"012345", f"{i:06d}".encode("ascii")) for i in range(1024))
     write_all((f"\x1b[2J\x1b[1;1HTPB_READY_{pid:010d}_"
                f"{size.columns:03d}x{size.lines:03d}_END").encode("ascii"))
     count = 0

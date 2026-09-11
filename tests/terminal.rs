@@ -132,10 +132,14 @@ impl Host {
         })
         .unwrap();
         terminal.vt_write(HOST_TEXT.as_bytes());
-        let mut command = CommandBuilder::new(env!("CARGO_BIN_EXE_tpane"));
+        let mut command = CommandBuilder::new(
+            std::env::var_os("TPANE_TEST_BINARY")
+                .unwrap_or_else(|| env!("CARGO_BIN_EXE_tpane").into()),
+        );
         command.args(["--shell", "/bin/sh"]);
         command.cwd(&home);
         command.env("HOME", &home);
+        command.env("TPANE_TRACE_FILE", home.join("trace.log"));
         command.env("ENV", "/dev/null");
         command.env("BASH_ENV", "/dev/null");
         command.env("TERM", "xterm-256color");
@@ -1147,4 +1151,84 @@ fn sgr_mouse_press_is_forwarded_to_tracking_application() {
     );
     host.send(b"exit\n");
     host.wait_exit(0);
+}
+
+#[test]
+fn slow_host_output_does_not_block_input_or_bounded_shutdown() {
+    let mut host = Host::new();
+    std::fs::write(
+        host.home.join("host_pressure.py"),
+        r#"import os, select, termios, tty
+saved = termios.tcgetattr(0)
+try:
+    tty.setraw(0)
+    os.set_blocking(1, False)
+    os.write(1, b'\r\n__PRESSURE_PID:' + str(os.getpid()).encode() + b'__\r\n')
+    flooding = False
+    while True:
+        ready, writable, _ = select.select([0], [1] if flooding else [], [])
+        if ready:
+            data = os.read(0, 1024)
+            if not data: break
+            if b'f' in data: flooding = True
+            if b'r' in data: open('input-received', 'w').close()
+        if writable:
+            try: os.write(1, b'HOST_OUTPUT_PRESSURE_0123456789\r\n' * 512)
+            except BlockingIOError: pass
+finally:
+    termios.tcsetattr(0, termios.TCSANOW, saved)
+"#,
+    )
+    .unwrap();
+    host.send(b"/usr/bin/python3 host_pressure.py\n");
+    let producer = host.track_pid("__PRESSURE_PID:");
+    host.send(b"f");
+    host.master
+        .resize(PtySize {
+            rows: 100,
+            cols: 200,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .unwrap();
+    // Deliberately stop reading the host PTY, including while sending input.
+    std::thread::sleep(Duration::from_millis(300));
+    host.writer.write_all(b"r").unwrap();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !host.home.join("input-received").exists() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(
+        host.home.join("input-received").exists(),
+        "blocked host output prevented input dispatch"
+    );
+    host.process.signal(libc::SIGTERM);
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !host.exited && Instant::now() < deadline {
+        host.exited = host.child.try_wait().unwrap().is_some();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    if !host.exited {
+        eprintln!(
+            "trace: {:?}",
+            std::fs::read_to_string(host.home.join("trace.log"))
+        );
+        let _ = std::process::Command::new("/bin/ps")
+            .args([
+                "-p",
+                host.process.pid.to_string().as_str(),
+                "-o",
+                "pid,ppid,stat,wchan,command",
+            ])
+            .status();
+    }
+    assert!(
+        host.exited,
+        "shutdown waited indefinitely for an unread host"
+    );
+    assert!(!producer.alive(), "shutdown left the producer alive");
+    let after = termios(&*host.master);
+    let mask = libc::ICANON | libc::ECHO | libc::ISIG;
+    assert_eq!(after.c_lflag & mask, host.before.c_lflag & mask);
+    // Visual reset cannot be guaranteed when the receiver refuses all output.
 }
