@@ -60,6 +60,103 @@ Reducing successful-read yields to once every 64 reads was **rejected**. In a se
 
 Direct-readiness transport also failed to recover visible throughput. Neither it nor the yield change is part of the promoted implementation. Publication/allocation granularity and cross-thread handoffs remain possible investigation targets, not demonstrated fixes. No frame cap, sleep-based batching, extra I/O workers, or renderer optimization is claimed to solve this.
 
+## Native / tpane / tmux / zellij
+
+```sh
+just bench
+just bench --panes 1,8,24 --trials 5 --mib 64 --keys 100
+# Correctness smoke only:
+just bench --panes 1,3 --trials 1 --mib 1 --keys 3
+python3 scripts/test-bench.py
+python3 scripts/test-bench-producer.py
+cc -std=c11 -O2 -Wall -Wextra -Werror scripts/test-bench-host.c -o /tmp/test-bench-host
+/tmp/test-bench-host target/release/bench-host
+```
+
+Requires `just`, Python 3, tmux and Zellij on PATH, plus tpane's normal build
+prerequisites. Zellij's isolated configuration targets the current CLI (tested
+with 0.44.3). Missing tools fail explicitly; the default never silently omits a
+competitor. `--variants native,tpane` is available for diagnostic subset runs.
+
+`just bench` builds release tpane, obtains **its actual native static-library path
+from Cargo's build messages**, and compiles `scripts/bench-host.c` with Clang `-O3`
+against that same `libghostty-vt.a`. The C executable calls libghostty's C API
+directly: no Rust wrapper, tpane engine, or tpane renderer in the native host.
+It self-tests parsed-screen completion handling before running cases.
+
+```text
+native: N child PTYs -> N independent libghostty terminals in one C poll loop
+others: N child PTYs -> multiplexer -> outer host PTY -> C libghostty host
+```
+
+The C host drains the outer PTY directly in bounded reads. Python only initiates
+work and receives completion notifications, not the output byte stream. The same
+changing-log fixture runs in all four cases. Every child's current 100×28 viewport
+is verified at output completion; tpane's outer PTY has extra rows for its bars. tmux
+status and Zellij frames/bar/background plugins are disabled. Scrollback limits
+are 10,000. Fresh HOME/config/runtime directories and private mux sessions prevent
+user configuration or existing sessions from influencing the tests.
+
+**Every tab produces output concurrently**, including hidden tabs. `--mib` is
+per tab: the default workload is 32 MiB × the requested number of tabs. Each
+fixture has a private control socket. All receive the same monotonic start
+deadline before any output begins; no tab switching or serial per-tab triggers
+are used during measurement. Shared timestamps use POSIX `CLOCK_MONOTONIC`;
+Python 3.9's macOS `perf_counter()`/`monotonic()` epochs are process-local and
+must not be used to coordinate different producers. Actual producer processing intervals must overlap,
+otherwise the run fails with a request to increase the workload.
+
+Native uses **N independent terminal instances and PTYs in one C process**, not
+one terminal doing 1/N of the work or N extra host processes. Its poll loop
+services all active PTYs fairly. Multiplexers retain one selected visible tab;
+all other tabs still produce and parse their full workloads.
+
+After a full untimed all-producer warmup, the harness measures:
+
+- **Output time:** common start deadline to completion of **every terminal**,
+  plus the selected tab's final host frame. Each fixture appends a cursor-position
+  query after its output and DONE marker; it sends a completion datagram only
+  after receiving the correct terminal response. This ordered parser barrier
+  verifies hidden tabs too, not merely bytes accepted into PTY buffers. The driver
+  checks every PID, generation, byte count, geometry and response, and verifies
+  the selected DONE in host cells with synchronized output closed. A missing
+  hidden completion fails the run. Intermediate visible frames may coalesce.
+- **Total CPU:** process user+system deltas for the native host **plus all mux
+  client/server threads**, excluding Python driver and workload children. The
+  measured PIDs are the stable host/client/server roles, not transient startup
+  or discovery helpers; required-process exits invalidate the trial rather than
+  dropping CPU samples. Includes PTY I/O, parsing, multiplexer rendering and host
+  marker detection; not just the mux PID. Native's denominator is the C host's CPU.
+- **Key p95 (quiet):** input to parsed ACK after all output has finished, with paced
+  keystrokes. This is not input latency during flooding.
+
+All displayed performance values are **cost / native cost**: native is **1.00×**,
+and **higher is worse** for every column. Values are medians of paired per-trial
+ratios at each pane count. Run order rotates across trials/counts; every case uses
+a fresh process/session. Startup, compilation and warmup are excluded. Tiny smoke
+runs verify the protocol, not performance; noisy native denominators can amplify
+ratios. CPU sampling also spans the short common-start wait and completion
+notification delivery. No benchmark driver subtraction or significance claim is made.
+
+This is a headless terminal-processing comparison, **not the Ghostty application,
+GPU rendering, physical display latency, or a parser-only in-memory ceiling**.
+Producer scheduling and PTY transport affect wall time. This is a finite,
+concurrently started workload, not an indefinitely sustained flood: faster panes
+can finish before slower panes. Quiet-input latency is a separate phase, not a
+claim about responsiveness during output. The host does not paint pixels, and
+multiplexers need not render every intermediate input state.
+
+Raw samples, process CPU snapshots, artifact hashes, versions and methodology are
+saved to a unique `.tools/bench/run-*.json` by default (`--output` accepts a fresh
+path). Raw JSON keeps absolute measurements for audit/reanalysis; the displayed
+comparison uses only native-relative multiples. Failed runs are marked failed
+and never summarized as successful comparisons. The shared per-user lock excludes
+other tpane harness runs, not unrelated load. Run serially on an idle machine.
+
+The all-active workload uses report schema **2**. Earlier schema-1 four-way runs
+used one active producer and idle background tabs; their rankings do **not**
+answer the all-active question and must not be compared directly with these runs.
+
 ## Run current benchmarks
 
 Build first, then run on an otherwise idle machine, serially. Do not run tests, compilers, profilers, or other variants concurrently. Use fresh output paths.

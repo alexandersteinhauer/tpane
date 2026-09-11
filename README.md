@@ -47,6 +47,29 @@ PTY output queues and outstanding input are bounded. Host output preserves order
 
 Promotion is an architectural tradeoff, not a claim of universal speedup: measured visible-output throughput remains below the synchronous control, and independent I/O costs more CPU than current-thread Tokio in some hidden-output workloads. See [PERFORMANCE.md](docs/PERFORMANCE.md) for measurements, benchmark commands, and archived evidence.
 
+## Benchmark
+
+```sh
+brew install just tmux zellij   # if not already installed
+just bench
+# Short correctness smoke run (not useful performance evidence):
+just bench --panes 1,3 --trials 1 --mib 1 --keys 3
+```
+
+Builds release tpane and a **C host linked directly to the same native libghostty
+static library**, without Rust bindings. Compares **native / tpane / tmux / zellij**
+with **every tab producing output concurrently**. Native uses the same number
+of independent terminal instances in one C process. Output time, total CPU cost,
+and explicitly labeled quiet-input p95 are reported as multiples of native:
+**1.00× is native; higher is worse**. Defaults: 1/8/24 active tabs, three trials,
+32 MiB of changing logs **per tab**.
+
+Every terminal must acknowledge parsing its full workload, including hidden tabs;
+finishing the selected tab alone is not enough. All four use the same headless
+host; native has no multiplexer. This measures processing overhead, not GPU/display performance. Runs use isolated configs and
+sessions, never your existing tmux/zellij sessions. Run on an otherwise idle
+machine. Raw results go to `.tools/bench/`; see [methodology](docs/PERFORMANCE.md#native--tpane--tmux--zellij).
+
 ## Validation
 
 ```sh
@@ -54,6 +77,8 @@ Promotion is an architectural tradeoff, not a claim of universal speedup: measur
 ./scripts/cargo.sh test --locked
 ./scripts/cargo.sh clippy --all-targets --locked -- -D warnings
 python3 scripts/test-benchmark.py
+python3 scripts/test-bench.py
+python3 scripts/test-bench-producer.py
 ```
 
 The promoted checkout passed Clippy, 56 unit + 21 integration tests serially, and the release integration suite. The default parallel run reproduced the known PTY resize failure; it remains unresolved. See [validation results and the real Ghostty checklist](docs/VALIDATION.md).
