@@ -19,8 +19,16 @@ pub enum PtyEvent {
 
 pub enum Control {
     ChildExited(Id),
-    WriteError { id: Id, error: io::Error },
-    FrameWritten { result: io::Result<()> },
+    WriteError {
+        id: Id,
+        error: io::Error,
+    },
+    // The completed frame's buffer is handed back: only one frame is ever in
+    // flight, so the owner can clear and reuse it instead of reallocating.
+    FrameWritten {
+        result: io::Result<()>,
+        frame: Vec<u8>,
+    },
     ClipboardFinished(Result<(), String>),
 }
 

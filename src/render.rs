@@ -15,6 +15,8 @@ pub struct Renderer {
     rows: RowIterator<'static>,
     cells: CellIterator<'static>,
     buffer: Vec<u8>,
+    // Reused grapheme scratch space: cleared per cell, allocated once.
+    text: String,
 }
 
 impl Renderer {
@@ -24,6 +26,7 @@ impl Renderer {
             rows: RowIterator::new()?,
             cells: CellIterator::new()?,
             buffer: Vec::new(),
+            text: String::new(),
         })
     }
 
@@ -83,7 +86,6 @@ impl Renderer {
         let mut previous: Option<Style> = None;
         let mut cached_style_id: Option<StyleId> = None;
         let mut cached_style = Style::default();
-        let mut text = String::new();
         while let Some(row) = rows.next() {
             if dirty == Dirty::Full || row.dirty()? {
                 write!(self.buffer, "\x1b[{};1H", u32::from(top) + y + 1)?;
@@ -118,15 +120,15 @@ impl Renderer {
                     // Text first: a cell without text may carry a background
                     // color in its content, which changes the style below.
                     let codepoint = if row_graphemes {
-                        text.clear();
-                        cell.graphemes_utf8(&mut text)?;
+                        self.text.clear();
+                        cell.graphemes_utf8(&mut self.text)?;
                         None
                     } else {
                         // No cell in this row has grapheme clusters, so the
                         // single codepoint is the whole cell text.
                         Some(raw.codepoint()?)
                     };
-                    let has_text = codepoint.map_or(!text.is_empty(), |cp| cp != 0);
+                    let has_text = codepoint.map_or(!self.text.is_empty(), |cp| cp != 0);
                     let mut style = if row_styled {
                         // Runs of cells share one style id, so the full style
                         // and its color lookups are only read on change.
@@ -162,7 +164,7 @@ impl Renderer {
                         self.buffer
                             .extend_from_slice(character.encode_utf8(&mut encoded).as_bytes());
                     } else {
-                        self.buffer.extend_from_slice(text.as_bytes());
+                        self.buffer.extend_from_slice(self.text.as_bytes());
                     }
                     if wide == CellWide::Wide {
                         skip_tail = true;

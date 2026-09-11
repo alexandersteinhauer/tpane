@@ -83,7 +83,10 @@ impl HostOutput {
                         // Move the original error into the control event, keeping
                         // raw OS errors intact. Only this task emits completion.
                         let failure = result.as_ref().err().map(copy_error);
-                        let delivered = bus.control.send(Control::FrameWritten { result });
+                        let delivered = bus.control.send(Control::FrameWritten {
+                            result,
+                            frame: bytes,
+                        });
                         if let Some(error) = failure {
                             return Err(error);
                         }

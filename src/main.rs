@@ -110,6 +110,7 @@ async fn run() -> Result<u8> {
         let mut output_busy = true;
         let mut processed = 0;
         let mut batch = Vec::with_capacity(64);
+        let mut frame = Vec::new();
         let mut turn = Instant::now();
         loop {
             if let Some(code) = app.exit_code() { return Ok(code); }
@@ -123,15 +124,19 @@ async fn run() -> Result<u8> {
                 _ = interrupt.recv() => return Ok(0),
                 _ = quit.recv() => return Ok(0),
                 _ = std::future::ready(()), if render => {
-                    let mut frame = Vec::new();
+                    frame.clear();
                     if app.draw(&mut frame)? {
                         output.send_frame(frame)?;
                         output_busy = true;
+                        // FrameWritten returns the buffer before the next
+                        // render can run (renders wait on !output_busy).
+                        frame = Vec::new();
                     }
                 }
                 Some(event) = control.recv() => {
-                    if let Control::FrameWritten { result } = event {
+                    if let Control::FrameWritten { result, frame: recycled } = event {
                         result.context("write host frame")?;
+                        frame = recycled;
                         output_busy = false;
                     } else { app.control(event)?; }
                 }

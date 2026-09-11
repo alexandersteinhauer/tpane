@@ -113,6 +113,12 @@ The same suite covers thirteen more program shapes. Three interleaved trials per
 
 The synthetic flood benchmark and the suite's own flood scenarios trade the other way at some sizes. Interleaved eight-trial `just bench --variants tpane` runs (32 MiB/tab) measured 1 tab 0.259 → 0.248 s output and 0.397 → 0.378 s app CPU; 8 tabs 0.834 → 0.868 s and 1.511 → 1.541 s; 24 tabs flat (2.696 → 2.704 s). A diagnostic build of the benchmark host that counts host input shows why: faster draws let the render-priority loop repaint the same rows more often under sustained flood, so a 16 MiB two-case run emitted **5192 frames and 15.4 MB instead of 3630 frames and 11.2 MB**, and outer-host CPU rose 19–49%; the suite's `cat-flood` and `seq-flood` show the same +32% host bytes. Frame granularity, not per-cell query cost, sets flood cost. The fast paths are kept for the interactive win with that trade-off recorded rather than presented as a universal speedup.
 
+## Frame buffer reuse (current checkout)
+
+Each presented frame used to allocate twice: `App::draw` staged into a fresh `Vec`, and the main loop allocated another buffer that the host writer dropped after its write. `App::draw` now reuses one staging buffer, the main loop clears and refills a single buffer, and the writer hands the frame buffer back through the `FrameWritten` completion event (only one frame is ever in flight), so the steady-state render path no longer allocates per frame. The renderer's grapheme scratch `String` is reused the same way.
+
+Interleaved eight-trial `just bench --variants tpane` runs (32 MiB/tab) measure app CPU 0.391 → 0.384 s at 1 tab, 1.543 → 1.517 s at 8 tabs, and 4.431 → 4.372 s at 24 tabs (−1.3 to −1.7%), with output time down about 1%. Under flood the win is small because large frames are dominated by the staging copy itself. Small key-driven frames are where the allocation used to bite: five-trial `nvim-scroll` runs (600 keys) measure main-thread CPU 161.4 → 141.5 ms (−12.3%) and total tpane CPU 289.4 → 267.9 ms (−7.4%) with frames, host bytes, and key latency unchanged. Post-change sampling attributes the remaining flood self time in `App::draw` to the row-emit copy, not allocation.
+
 ## Native / tpane / tmux / zellij
 
 ```sh

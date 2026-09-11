@@ -37,6 +37,10 @@ pub struct App {
     cell: (u16, u16),
     dirty: bool,
     content_dirty: bool,
+    // Frame staging buffer, reused across draws: frames recur hundreds of
+    // times per second under output flood, where per-frame allocation shows
+    // up in profiles.
+    frame: Vec<u8>,
     bus: Bus,
     watch: ProcessWatch,
     focused: bool,
@@ -92,6 +96,7 @@ impl App {
             cell,
             dirty: true,
             content_dirty: true,
+            frame: Vec::new(),
             bus,
             watch,
             focused: true,
@@ -562,23 +567,23 @@ impl App {
         if !self.needs_render() {
             return Ok(false);
         }
-        let mut frame = Vec::new();
+        self.frame.clear();
         if self.dirty || self.explorer.is_some() {
-            frame.extend_from_slice(b"\x1b[?2026h\x1b[?25l");
+            self.frame.extend_from_slice(b"\x1b[?2026h\x1b[?25l");
         }
         if self.dirty {
-            frame.extend_from_slice(b"\x1b[0m\x1b[2J");
+            self.frame.extend_from_slice(b"\x1b[0m\x1b[2J");
         }
         if let Some(id) = self.tree.active_terminal() {
             self.panes
                 .get_mut(&id)
                 .unwrap()
-                .draw(&mut frame, 0, self.dirty)?;
+                .draw(&mut self.frame, 0, self.dirty)?;
         }
         // Repaint over each incremental terminal frame, not just UI changes.
         if let Some(explorer) = &self.explorer {
             explorer.draw(
-                &mut frame,
+                &mut self.frame,
                 self.cols,
                 self.rows,
                 &self.tree,
@@ -586,14 +591,14 @@ impl App {
                 self.confirm.is_some(),
             )?;
         }
-        if !frame.is_empty() {
-            frame.extend_from_slice(b"\x1b[?2026l");
-            output.write_all(&frame)?;
+        if !self.frame.is_empty() {
+            self.frame.extend_from_slice(b"\x1b[?2026l");
+            output.write_all(&self.frame)?;
             output.flush()?;
         }
         self.dirty = false;
         self.content_dirty = false;
-        Ok(!frame.is_empty())
+        Ok(!self.frame.is_empty())
     }
 }
 
