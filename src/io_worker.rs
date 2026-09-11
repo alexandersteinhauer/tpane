@@ -9,11 +9,16 @@ use std::{
     thread,
 };
 
+use crate::wake::Wake;
 use anyhow::{Context, Result, ensure};
+use crossterm::event::{self, Event};
 
 const MAX_PENDING_INPUT: usize = 8 * 1024 * 1024;
 
-pub fn read_output(mut reader: Box<dyn Read + Send>) -> Result<Receiver<io::Result<Vec<u8>>>> {
+pub fn read_output(
+    mut reader: Box<dyn Read + Send>,
+    wake: Wake,
+) -> Result<Receiver<io::Result<Vec<u8>>>> {
     let (tx, rx) = mpsc::sync_channel(16);
     thread::Builder::new()
         .name("pty-reader".into())
@@ -26,6 +31,7 @@ pub fn read_output(mut reader: Box<dyn Read + Send>) -> Result<Receiver<io::Resu
                         if tx.send(Ok(buffer[..count].to_vec())).is_err() {
                             break;
                         }
+                        wake.notify();
                     }
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
                     Err(error) if error.raw_os_error() == Some(libc::EIO) => break,
@@ -33,6 +39,28 @@ pub fn read_output(mut reader: Box<dyn Read + Send>) -> Result<Receiver<io::Resu
                         let _ = tx.send(Err(error));
                         break;
                     }
+                }
+            }
+            drop(tx);
+            wake.notify();
+        })?;
+    Ok(rx)
+}
+
+pub fn read_input(wake: Wake) -> Result<Receiver<io::Result<Event>>> {
+    let (tx, rx) = mpsc::sync_channel(256);
+    thread::Builder::new()
+        .name("terminal-input".into())
+        .spawn(move || {
+            loop {
+                let event = event::read();
+                let failed = event.is_err();
+                if tx.send(event).is_err() {
+                    break;
+                }
+                wake.notify();
+                if failed {
+                    break;
                 }
             }
         })?;
@@ -47,7 +75,7 @@ pub struct Writer {
 }
 
 impl Writer {
-    pub fn new(mut writer: Box<dyn Write + Send>) -> Result<Self> {
+    pub fn new(mut writer: Box<dyn Write + Send>, wake: Wake) -> Result<Self> {
         let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(16);
         let (error_tx, errors) = mpsc::sync_channel(1);
         let outstanding = Arc::new(AtomicUsize::new(0));
@@ -60,8 +88,10 @@ impl Writer {
                     count.fetch_sub(bytes.len(), Ordering::Relaxed);
                     if let Err(error) = result {
                         let _ = error_tx.send(error);
+                        wake.notify();
                         break;
                     }
+                    wake.notify();
                 }
             })?;
         Ok(Self {
@@ -124,7 +154,7 @@ mod tests {
     #[test]
     fn a_full_pty_cannot_block_the_main_thread_and_input_is_bounded() {
         let (_release, blocked) = mpsc::channel();
-        let mut writer = Writer::new(Box::new(BlockedWriter(blocked))).unwrap();
+        let mut writer = Writer::new(Box::new(BlockedWriter(blocked)), Wake::new()).unwrap();
         writer.write(&vec![b'x'; MAX_PENDING_INPUT]).unwrap();
         assert!(writer.write(b"x").is_err());
         writer.flush().unwrap();

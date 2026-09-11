@@ -1,0 +1,130 @@
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -22,7 +22,7 @@
+         atomic::{AtomicBool, Ordering},
+         mpsc::TryRecvError,
+     },
+-    time::Duration,
++    time::{Duration, Instant},
+ };
+ 
+ use anyhow::{Context, Result, bail};
+@@ -74,6 +74,7 @@
+     let wake = Wake::new();
+     let input = io_worker::read_input(wake.clone())?;
+     let mut app = App::new(shell, cols, rows, cell, wake.clone())?;
++    let mut last_frame = Instant::now() - Duration::from_millis(17);
+     loop {
+         if stop.load(Ordering::Relaxed) {
+             return Ok(0);
+@@ -98,13 +99,20 @@
+         if let Some(code) = exit {
+             return Ok(code);
+         }
+-        if app.needs_render() {
+-            app.draw(&mut io::stdout())?;
++        if app.needs_render()
++            && last_frame.elapsed() >= Duration::from_millis(16)
++            && app.draw(&mut io::stdout())?
++        {
++            last_frame = Instant::now();
+         }
+         if more_output || input_budget_exhausted {
+             continue;
+         }
+-        let timeout = Duration::from_millis(100);
++        let timeout = if app.needs_render() {
++            Duration::from_millis(16).saturating_sub(last_frame.elapsed())
++        } else {
++            Duration::from_millis(100)
++        };
+         wake.wait(timeout);
+     }
+ }
+--- a/experiments/tokio-native/main.rs
++++ b/experiments/tokio-native/main.rs
+@@ -108,12 +108,15 @@
+     let mut input = EventStream::new();
+     let result = async {
+         let mut output_busy = true;
++        let mut initializing = true;
++        let mut last_frame = Instant::now() - Duration::from_millis(16);
+         let mut processed = 0;
+         let mut batch = Vec::with_capacity(64);
+         let mut turn = Instant::now();
+         loop {
+             if let Some(code) = app.exit_code() { return Ok(code); }
+             let render = app.needs_render() && !output_busy;
++            let deadline = last_frame + Duration::from_millis(16);
+             let timers = !app.timers.is_empty();
+             let cleanup = !app.cleanup.is_empty();
+             tokio::select! {
+@@ -122,7 +125,7 @@
+                 _ = hangup.recv() => return Ok(0),
+                 _ = interrupt.recv() => return Ok(0),
+                 _ = quit.recv() => return Ok(0),
+-                _ = std::future::ready(()), if render => {
++                _ = tokio::time::sleep_until(deadline.into()), if render => {
+                     let mut frame = Vec::new();
+                     if app.draw(&mut frame)? {
+                         output.send_frame(frame)?;
+@@ -130,9 +133,10 @@
+                     }
+                 }
+                 Some(event) = control.recv() => {
+-                    if let Control::FrameWritten { result } = event {
++                    if let Control::FrameWritten { completed, result } = event {
+                         result.context("write host frame")?;
+                         output_busy = false;
++                        if initializing { initializing = false; } else { last_frame = completed; }
+                     } else { app.control(event)?; }
+                 }
+                 Some(expired) = app.timers.next(), if timers => app.timeout(expired.into_inner())?,
+--- a/experiments/tokio-native/bus.rs
++++ b/experiments/tokio-native/bus.rs
+@@ -1,4 +1,4 @@
+-use std::{io, sync::Arc};
++use std::{io, sync::Arc, time::Instant};
+ 
+ use tokio::sync::{OwnedSemaphorePermit, mpsc};
+ 
+@@ -19,8 +19,14 @@
+ 
+ pub enum Control {
+     ChildExited(Id),
+-    WriteError { id: Id, error: io::Error },
+-    FrameWritten { result: io::Result<()> },
++    WriteError {
++        id: Id,
++        error: io::Error,
++    },
++    FrameWritten {
++        completed: Instant,
++        result: io::Result<()>,
++    },
+     ClipboardFinished(Result<(), String>),
+ }
+ 
+--- a/experiments/tokio-native/output.rs
++++ b/experiments/tokio-native/output.rs
+@@ -3,7 +3,7 @@
+ use std::{
+     io::{self, Result},
+     os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd},
+-    time::Duration,
++    time::{Duration, Instant},
+ };
+ use tokio::{
+     io::{Interest, unix::AsyncFd},
+@@ -83,7 +83,10 @@
+                         // Move the original error into the control event, keeping
+                         // raw OS errors intact. Only this task emits completion.
+                         let failure = result.as_ref().err().map(copy_error);
+-                        let delivered = bus.control.send(Control::FrameWritten { result });
++                        let delivered = bus.control.send(Control::FrameWritten {
++                            completed: Instant::now(),
++                            result,
++                        });
+                         if let Some(error) = failure {
+                             return Err(error);
+                         }

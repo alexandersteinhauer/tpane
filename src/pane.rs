@@ -16,6 +16,7 @@ use crate::{
     pty::Session,
     render::Renderer,
     selection::{self, SelectionState},
+    wake::Wake,
 };
 
 pub struct Pane {
@@ -29,6 +30,7 @@ pub struct Pane {
     exited: Option<(u8, Instant)>,
     eof: Option<Instant>,
     geometry: (u16, u16, u16, u16),
+    next_status_check: Instant,
 }
 
 pub struct Progress {
@@ -37,15 +39,22 @@ pub struct Progress {
 }
 
 impl Pane {
-    pub fn new(shell: &Path, cwd: &Path, cols: u16, rows: u16, cell: (u16, u16)) -> Result<Self> {
+    pub fn new(
+        shell: &Path,
+        cwd: &Path,
+        cols: u16,
+        rows: u16,
+        cell: (u16, u16),
+        wake: Wake,
+    ) -> Result<Self> {
         let mut engine = Engine::new(cols, rows)?;
         engine.resize(cols, rows, cell.0, cell.1)?;
         let renderer = Renderer::new()?;
         let mut input = Input::new()?;
         input.set_cell_size(cell.0, cell.1);
         let mut session = Session::spawn_in(shell, rows, cols, cwd)?;
-        let output = io_worker::read_output(session.reader()?)?;
-        let writer = Writer::new(session.take_writer()?)?;
+        let output = io_worker::read_output(session.reader()?, wake.clone())?;
+        let writer = Writer::new(session.take_writer()?, wake)?;
         Ok(Self {
             selection: SelectionState::default(),
             renderer,
@@ -57,14 +66,17 @@ impl Pane {
             exited: None,
             eof: None,
             geometry: (cols, rows, cell.0, cell.1),
+            next_status_check: Instant::now(),
         })
     }
 
     pub fn poll(&mut self, read_output: bool) -> Result<Progress> {
-        if self.exited.is_none()
-            && let Some(status) = self.session.try_wait()?
-        {
-            self.exited = Some((status.exit_code().min(255) as u8, Instant::now()));
+        let now = Instant::now();
+        if self.exited.is_none() && (self.eof.is_some() || now >= self.next_status_check) {
+            self.next_status_check = now + Duration::from_millis(100);
+            if let Some(status) = self.session.try_wait()? {
+                self.exited = Some((status.exit_code().min(255) as u8, now));
+            }
         }
         let mut consumed = false;
         let mut drained = false;

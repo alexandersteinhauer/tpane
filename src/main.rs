@@ -11,6 +11,7 @@ mod pty;
 mod render;
 mod selection;
 mod tree;
+mod wake;
 
 use std::{
     io,
@@ -19,17 +20,15 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
+        mpsc::TryRecvError,
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use anyhow::{Context, Result, bail};
-use crossterm::{
-    event::{self, Event},
-    terminal,
-};
+use crossterm::{event::Event, terminal};
 
-use crate::{app::App, host::Host};
+use crate::{app::App, host::Host, wake::Wake};
 
 fn main() -> ExitCode {
     match run() {
@@ -72,33 +71,41 @@ fn run() -> Result<u8> {
     }
     let _host = Host::enter()?;
     let (cols, rows, cell) = dimensions()?;
-    let mut app = App::new(shell, cols, rows, cell)?;
-    let mut last_frame = Instant::now() - Duration::from_millis(17);
+    let wake = Wake::new();
+    let input = io_worker::read_input(wake.clone())?;
+    let mut app = App::new(shell, cols, rows, cell, wake.clone())?;
     loop {
         if stop.load(Ordering::Relaxed) {
             return Ok(0);
         }
-        if let Some(code) = app.tick()? {
-            return Ok(code);
-        }
-        if last_frame.elapsed() >= Duration::from_millis(16) {
-            app.draw(&mut io::stdout())?;
-            last_frame = Instant::now();
-        }
-        if event::poll(Duration::from_millis(4))? {
-            for _ in 0..32 {
-                match event::read()? {
-                    Event::Resize(_, _) => {
-                        let (cols, rows, cell) = dimensions()?;
-                        app.resize(cols, rows, cell)?;
-                    }
-                    event => app.event(event)?,
+        let mut input_budget_exhausted = true;
+        for _ in 0..128 {
+            match input.try_recv() {
+                Ok(Ok(Event::Resize(_, _))) => {
+                    let (cols, rows, cell) = dimensions()?;
+                    app.resize(cols, rows, cell)?;
                 }
-                if !event::poll(Duration::ZERO)? {
+                Ok(Ok(event)) => app.event(event)?,
+                Ok(Err(error)) => return Err(error).context("read terminal input"),
+                Err(TryRecvError::Empty) => {
+                    input_budget_exhausted = false;
                     break;
                 }
+                Err(TryRecvError::Disconnected) => bail!("terminal input worker stopped"),
             }
         }
+        let (exit, more_output) = app.tick()?;
+        if let Some(code) = exit {
+            return Ok(code);
+        }
+        if app.needs_render() {
+            app.draw(&mut io::stdout())?;
+        }
+        if more_output || input_budget_exhausted {
+            continue;
+        }
+        let timeout = Duration::from_millis(100);
+        wake.wait(timeout);
     }
 }
 

@@ -1,0 +1,3113 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "environment": {
+    "utc_started": "2026-09-11T09:25:28.359470+00:00",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "machine": "arm64",
+    "macos": "26.6.2",
+    "python": "3.9.6 (default, May 22 2026, 11:13:45) \n[Clang 21.0.0 (clang-2100.1.1.101)]",
+    "python_executable": "/Library/Developer/CommandLineTools/usr/bin/python3",
+    "logical_cpus": 18,
+    "hardware_model": "Mac17,9",
+    "cpu_brand": "Apple M5 Pro",
+    "binary": "/Users/alex/Projects/tpane/target/release/tpane",
+    "binary_sha256": "1b9a8051a38bd838a54c08c763f4f96bc272ea18d3bf2f6631760333d084951d",
+    "binary_size": 2264960,
+    "cpu_counter_validation": {
+      "mach_timebase_numer": 125,
+      "mach_timebase_denom": 3,
+      "driver_libproc_cpu_ns": 38882249,
+      "driver_process_time_ns": 38888000,
+      "tolerance": "max(2ms, 5%); no busy-loop calibration"
+    },
+    "harness_sha256": "69102e538b14991339fdb79915ca9c685f59de8a6f35904aeb9a07adc5f1d41c",
+    "fixture_sha256": "f268d3fa8a2b223c2b7db3d7b81d3939e6a004faef0d6d5cf98de7bca6d7735e",
+    "outer_pty": {
+      "cols": 100,
+      "rows": 30,
+      "pixel_width": 0,
+      "pixel_height": 0
+    },
+    "host_term": "xterm-256color",
+    "host_colorterm": "truecolor",
+    "environment_policy": "allowlist; temporary HOME/PWD/SHELL/XDG/TMPDIR; no user configs",
+    "binary_sha256_after": "1b9a8051a38bd838a54c08c763f4f96bc272ea18d3bf2f6631760333d084951d"
+  },
+  "options": {
+    "binary": "/Users/alex/Projects/tpane/target/release/tpane",
+    "panes": [
+      1,
+      24,
+      64
+    ],
+    "root_bar_rows": 1,
+    "trials": 3,
+    "output": "docs/performance/readiness/final/sync-varied.json",
+    "keys": 20,
+    "burst_keys": 100,
+    "output_bytes": 33554432,
+    "idle_seconds": 0.5,
+    "settle_seconds": 0.3,
+    "timeout": 30.0,
+    "seed": 2026
+  },
+  "method": {
+    "latency": "write start to ASCII ACK plus following ESC[?2026l received on outer PTY",
+    "percentiles": "linear interpolation at (n-1)*p, per trial",
+    "cpu": "PROC_PIDTASKINFO=4, 96-byte Darwin proc_taskinfo; pti_total_user/system Mach ticks converted to ns with mach_timebase_info",
+    "cpu_scope": "tpane PID, all threads; excludes Python children and benchmark driver",
+    "memory": "tpane PID resident and virtual bytes at phase boundaries, not peak or system-wide memory",
+    "cpu_percent": "100% = one fully occupied core; may exceed 100%",
+    "ps": "before/after PID, PPID, aggregate CPU time, command; coarse corroboration only",
+    "order": "trial-major, pane counts in CLI order; fresh process per case",
+    "limitations": [
+      "not physical display or Ghostty GUI latency",
+      "driver scheduling, PTY transport and Python backend affect wall time",
+      "finite-output throughput includes backend production and final render; frames may coalesce",
+      "latency CPU includes 0-20ms seeded think times",
+      "1 pane has 29 terminal rows; multiple panes have 28 (two bars)",
+      "CPU sample boundaries include small libproc-call overhead",
+      "no control over unrelated load, thermals, power state or binary build flags",
+      "ps CPU time is coarse; ABI/thread count/monotonicity checked; timebase conversion checked against driver process_time_ns"
+    ]
+  },
+  "trials": [
+    {
+      "panes": 1,
+      "trial": 1,
+      "phases": {
+        "idle": {
+          "wall_seconds": 0.50477375,
+          "driver_cpu_seconds": 4.1e-05,
+          "cpu_user_seconds": 3.3334e-05,
+          "cpu_system_seconds": 3.1542e-05,
+          "cpu_total_seconds": 6.4876e-05,
+          "cpu_sample_wall_seconds": 0.504801708,
+          "cpu_percent_one_core": 0.012851779019733427,
+          "cpu_before": {
+            "sample_ns": 582260958,
+            "user_ticks": 32119,
+            "system_ticks": 66527,
+            "user_ns": 1338291,
+            "system_ns": 2771958,
+            "threads": 4,
+            "resident_bytes": 3309568,
+            "virtual_bytes": 445757472768
+          },
+          "cpu_after": {
+            "sample_ns": 1087062666,
+            "user_ticks": 32919,
+            "system_ticks": 67284,
+            "user_ns": 1371625,
+            "system_ns": 2803500,
+            "threads": 4,
+            "resident_bytes": 3309568,
+            "virtual_bytes": 445757472768
+          },
+          "host_bytes_read": 0
+        },
+        "input_to_render": {
+          "wall_seconds": 0.28804625,
+          "driver_cpu_seconds": 0.001995,
+          "cpu_user_seconds": 0.000424041,
+          "cpu_system_seconds": 0.00061375,
+          "cpu_total_seconds": 0.001037791,
+          "cpu_sample_wall_seconds": 0.2880675,
+          "cpu_percent_one_core": 0.36025966136409004,
+          "cpu_before": {
+            "sample_ns": 1087076500,
+            "user_ticks": 32919,
+            "system_ticks": 67284,
+            "user_ns": 1371625,
+            "system_ns": 2803500,
+            "threads": 4,
+            "resident_bytes": 3309568,
+            "virtual_bytes": 445757472768
+          },
+          "cpu_after": {
+            "sample_ns": 1375144000,
+            "user_ticks": 43096,
+            "system_ticks": 82014,
+            "user_ns": 1795666,
+            "system_ns": 3417250,
+            "threads": 4,
+            "resident_bytes": 3407872,
+            "virtual_bytes": 445757472768
+          },
+          "host_bytes_read": 3240,
+          "samples_ms": [
+            0.133833,
+            0.058584,
+            0.062167,
+            0.081208,
+            0.075583,
+            0.08075,
+            0.07725,
+            0.082083,
+            0.096416,
+            0.167417,
+            0.066542,
+            0.06,
+            0.068458,
+            0.054541,
+            0.049666,
+            0.053792,
+            0.043042,
+            0.03625,
+            0.04825,
+            0.04875
+          ],
+          "think_times_ms": [
+            3,
+            10,
+            16,
+            16,
+            20,
+            3,
+            7,
+            19,
+            19,
+            17,
+            13,
+            18,
+            17,
+            15,
+            18,
+            14,
+            7,
+            0,
+            19,
+            2
+          ],
+          "p50_ms": 0.06435450000000001,
+          "p95_ms": 0.13551220000000003
+        },
+        "paste_burst": {
+          "wall_seconds": 0.000248375,
+          "driver_cpu_seconds": 0.000126,
+          "cpu_user_seconds": 0.000128625,
+          "cpu_system_seconds": 0.000281833,
+          "cpu_total_seconds": 0.000410458,
+          "cpu_sample_wall_seconds": 0.000254541,
+          "cpu_percent_one_core": 161.25417909099122,
+          "cpu_before": {
+            "sample_ns": 1375152875,
+            "user_ticks": 43096,
+            "system_ticks": 82014,
+            "user_ns": 1795666,
+            "system_ns": 3417250,
+            "threads": 4,
+            "resident_bytes": 3407872,
+            "virtual_bytes": 445757472768
+          },
+          "cpu_after": {
+            "sample_ns": 1375407416,
+            "user_ticks": 46183,
+            "system_ticks": 88778,
+            "user_ns": 1924291,
+            "system_ns": 3699083,
+            "threads": 4,
+            "resident_bytes": 3457024,
+            "virtual_bytes": 445757472768
+          },
+          "host_bytes_read": 1944,
+          "keys": 100,
+          "last_ack": 120,
+          "catchup_ms": 0.206625,
+          "protocol": "unbracketed ASCII paste/burst, one write"
+        },
+        "finite_output": {
+          "wall_seconds": 0.294704084,
+          "driver_cpu_seconds": 0.082403,
+          "cpu_user_seconds": 0.200395834,
+          "cpu_system_seconds": 0.169038958,
+          "cpu_total_seconds": 0.369434792,
+          "cpu_sample_wall_seconds": 0.294730959,
+          "cpu_percent_one_core": 125.34644926799157,
+          "cpu_before": {
+            "sample_ns": 1375477041,
+            "user_ticks": 46183,
+            "system_ticks": 88778,
+            "user_ns": 1924291,
+            "system_ns": 3699083,
+            "threads": 4,
+            "resident_bytes": 3457024,
+            "virtual_bytes": 445757472768
+          },
+          "cpu_after": {
+            "sample_ns": 1670208000,
+            "user_ticks": 4855683,
+            "system_ticks": 4145713,
+            "user_ns": 202320125,
+            "system_ns": 172738041,
+            "threads": 4,
+            "resident_bytes": 4292608,
+            "virtual_bytes": 445757472768
+          },
+          "host_bytes_read": 6842514,
+          "payload_bytes": 33554432,
+          "completion_seconds": 0.2946505,
+          "payload_mib_per_second": 108.60324350374427
+        }
+      },
+      "tpane_pid": 91915,
+      "children": [
+        {
+          "pid": 91916,
+          "cols": 100,
+          "rows": 29
+        }
+      ],
+      "startup_and_pane_creation_ms": 181.670834,
+      "selected_viewport": [
+        100,
+        29
+      ],
+      "ps_before": "91915 91909   0:00.00 /Users/alex/Projects/tpane/target/release/tpane",
+      "ps_after": "91915 91909   0:00.38 /Users/alex/Projects/tpane/target/release/tpane"
+    },
+    {
+      "panes": 24,
+      "trial": 1,
+      "phases": {
+        "idle": {
+          "wall_seconds": 0.504108958,
+          "driver_cpu_seconds": 7.1e-05,
+          "cpu_user_seconds": 7.6917e-05,
+          "cpu_system_seconds": 0.000118458,
+          "cpu_total_seconds": 0.000195375,
+          "cpu_sample_wall_seconds": 0.504144917,
+          "cpu_percent_one_core": 0.038753737945551876,
+          "cpu_before": {
+            "sample_ns": 3112702916,
+            "user_ticks": 230033,
+            "system_ticks": 1038780,
+            "user_ns": 9584708,
+            "system_ns": 43282500,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915348992
+          },
+          "cpu_after": {
+            "sample_ns": 3616847833,
+            "user_ticks": 231879,
+            "system_ticks": 1041623,
+            "user_ns": 9661625,
+            "system_ns": 43400958,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915348992
+          },
+          "host_bytes_read": 0
+        },
+        "input_to_render": {
+          "wall_seconds": 0.30626275,
+          "driver_cpu_seconds": 0.0022,
+          "cpu_user_seconds": 0.000729333,
+          "cpu_system_seconds": 0.000945417,
+          "cpu_total_seconds": 0.00167475,
+          "cpu_sample_wall_seconds": 0.306296292,
+          "cpu_percent_one_core": 0.546774493763705,
+          "cpu_before": {
+            "sample_ns": 3616862666,
+            "user_ticks": 231879,
+            "system_ticks": 1041623,
+            "user_ns": 9661625,
+            "system_ns": 43400958,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915348992
+          },
+          "cpu_after": {
+            "sample_ns": 3923158958,
+            "user_ticks": 249383,
+            "system_ticks": 1064313,
+            "user_ns": 10390958,
+            "system_ns": 44346375,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915348992
+          },
+          "host_bytes_read": 3240,
+          "samples_ms": [
+            0.34325,
+            0.074708,
+            0.077833,
+            0.074333,
+            0.079875,
+            0.055875,
+            0.075125,
+            0.065667,
+            0.095917,
+            0.099834,
+            0.105833,
+            0.181792,
+            0.090667,
+            0.06675,
+            0.068834,
+            0.151334,
+            0.106875,
+            0.094084,
+            0.090084,
+            0.049834
+          ],
+          "think_times_ms": [
+            3,
+            10,
+            16,
+            16,
+            20,
+            3,
+            7,
+            19,
+            19,
+            17,
+            13,
+            18,
+            17,
+            15,
+            18,
+            14,
+            7,
+            0,
+            19,
+            2
+          ],
+          "p50_ms": 0.0849795,
+          "p95_ms": 0.18986490000000011
+        },
+        "paste_burst": {
+          "wall_seconds": 0.000306625,
+          "driver_cpu_seconds": 0.000186,
+          "cpu_user_seconds": 0.000221542,
+          "cpu_system_seconds": 0.000291541,
+          "cpu_total_seconds": 0.000513083,
+          "cpu_sample_wall_seconds": 0.000313416,
+          "cpu_percent_one_core": 163.7067029124231,
+          "cpu_before": {
+            "sample_ns": 3923169000,
+            "user_ticks": 249383,
+            "system_ticks": 1064313,
+            "user_ns": 10390958,
+            "system_ns": 44346375,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915348992
+          },
+          "cpu_after": {
+            "sample_ns": 3923482416,
+            "user_ticks": 254700,
+            "system_ticks": 1071310,
+            "user_ns": 10612500,
+            "system_ns": 44637916,
+            "threads": 50,
+            "resident_bytes": 14024704,
+            "virtual_bytes": 445915348992
+          },
+          "host_bytes_read": 2106,
+          "keys": 100,
+          "last_ack": 120,
+          "catchup_ms": 0.249708,
+          "protocol": "unbracketed ASCII paste/burst, one write"
+        },
+        "finite_output": {
+          "wall_seconds": 0.19668725,
+          "driver_cpu_seconds": 0.038328,
+          "cpu_user_seconds": 0.170488916,
+          "cpu_system_seconds": 0.11942125,
+          "cpu_total_seconds": 0.289910166,
+          "cpu_sample_wall_seconds": 0.196715083,
+          "cpu_percent_one_core": 147.37566717240486,
+          "cpu_before": {
+            "sample_ns": 3923496250,
+            "user_ticks": 254700,
+            "system_ticks": 1071310,
+            "user_ns": 10612500,
+            "system_ns": 44637916,
+            "threads": 50,
+            "resident_bytes": 14024704,
+            "virtual_bytes": 445915348992
+          },
+          "cpu_after": {
+            "sample_ns": 4120211333,
+            "user_ticks": 4346434,
+            "system_ticks": 3937420,
+            "user_ns": 181101416,
+            "system_ns": 164059166,
+            "threads": 50,
+            "resident_bytes": 14843904,
+            "virtual_bytes": 445915348992
+          },
+          "host_bytes_read": 4313304,
+          "payload_bytes": 33554432,
+          "completion_seconds": 0.196637041,
+          "payload_mib_per_second": 162.7363788493949
+        }
+      },
+      "tpane_pid": 91945,
+      "children": [
+        {
+          "pid": 91946,
+          "cols": 100,
+          "rows": 29
+        },
+        {
+          "pid": 91947,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91948,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91949,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91950,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91951,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91952,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91953,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91955,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91957,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91960,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91962,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91963,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91964,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91965,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91966,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91967,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91968,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91969,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91970,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91975,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91976,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91977,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91978,
+          "cols": 100,
+          "rows": 28
+        }
+      ],
+      "startup_and_pane_creation_ms": 1048.047708,
+      "selected_viewport": [
+        100,
+        28
+      ],
+      "ps_before": "91945 91909   0:00.05 /Users/alex/Projects/tpane/target/release/tpane",
+      "ps_after": "91945 91909   0:00.35 /Users/alex/Projects/tpane/target/release/tpane"
+    },
+    {
+      "panes": 64,
+      "trial": 1,
+      "phases": {
+        "idle": {
+          "wall_seconds": 0.502566625,
+          "driver_cpu_seconds": 3.8e-05,
+          "cpu_user_seconds": 0.000155916,
+          "cpu_system_seconds": 0.000288333,
+          "cpu_total_seconds": 0.000444249,
+          "cpu_sample_wall_seconds": 0.502612167,
+          "cpu_percent_one_core": 0.08838803140235163,
+          "cpu_before": {
+            "sample_ns": 7190708916,
+            "user_ticks": 592035,
+            "system_ticks": 3067728,
+            "user_ns": 24668125,
+            "system_ns": 127822000,
+            "threads": 130,
+            "resident_bytes": 31309824,
+            "virtual_bytes": 446190108672
+          },
+          "cpu_after": {
+            "sample_ns": 7693321083,
+            "user_ticks": 595777,
+            "system_ticks": 3074648,
+            "user_ns": 24824041,
+            "system_ns": 128110333,
+            "threads": 130,
+            "resident_bytes": 31309824,
+            "virtual_bytes": 446190108672
+          },
+          "host_bytes_read": 0
+        },
+        "input_to_render": {
+          "wall_seconds": 0.301876542,
+          "driver_cpu_seconds": 0.002161,
+          "cpu_user_seconds": 0.000856959,
+          "cpu_system_seconds": 0.000804583,
+          "cpu_total_seconds": 0.001661542,
+          "cpu_sample_wall_seconds": 0.301928042,
+          "cpu_percent_one_core": 0.5503105935420202,
+          "cpu_before": {
+            "sample_ns": 7693338833,
+            "user_ticks": 595777,
+            "system_ticks": 3074648,
+            "user_ns": 24824041,
+            "system_ns": 128110333,
+            "threads": 130,
+            "resident_bytes": 31309824,
+            "virtual_bytes": 446190108672
+          },
+          "cpu_after": {
+            "sample_ns": 7995266875,
+            "user_ticks": 616344,
+            "system_ticks": 3093958,
+            "user_ns": 25681000,
+            "system_ns": 128914916,
+            "threads": 130,
+            "resident_bytes": 31309824,
+            "virtual_bytes": 446190108672
+          },
+          "host_bytes_read": 3240,
+          "samples_ms": [
+            0.17125,
+            0.084084,
+            0.077333,
+            0.085125,
+            0.089958,
+            0.056917,
+            0.130541,
+            0.072833,
+            0.068375,
+            0.092125,
+            0.097541,
+            0.158666,
+            0.077084,
+            0.168,
+            0.086833,
+            0.071208,
+            0.069792,
+            0.053792,
+            0.13325,
+            0.08925
+          ],
+          "think_times_ms": [
+            3,
+            10,
+            16,
+            16,
+            20,
+            3,
+            7,
+            19,
+            19,
+            17,
+            13,
+            18,
+            17,
+            15,
+            18,
+            14,
+            7,
+            0,
+            19,
+            2
+          ],
+          "p50_ms": 0.085979,
+          "p95_ms": 0.16816250000000002
+        },
+        "paste_burst": {
+          "wall_seconds": 0.000329083,
+          "driver_cpu_seconds": 7.2e-05,
+          "cpu_user_seconds": 0.000302875,
+          "cpu_system_seconds": 0.00023975,
+          "cpu_total_seconds": 0.000542625,
+          "cpu_sample_wall_seconds": 0.00034225,
+          "cpu_percent_one_core": 158.5463842220599,
+          "cpu_before": {
+            "sample_ns": 7995279291,
+            "user_ticks": 616344,
+            "system_ticks": 3093958,
+            "user_ns": 25681000,
+            "system_ns": 128914916,
+            "threads": 130,
+            "resident_bytes": 31309824,
+            "virtual_bytes": 446190108672
+          },
+          "cpu_after": {
+            "sample_ns": 7995621541,
+            "user_ticks": 623613,
+            "system_ticks": 3099712,
+            "user_ns": 25983875,
+            "system_ns": 129154666,
+            "threads": 130,
+            "resident_bytes": 31309824,
+            "virtual_bytes": 446190108672
+          },
+          "host_bytes_read": 162,
+          "keys": 100,
+          "last_ack": 120,
+          "catchup_ms": 0.27,
+          "protocol": "unbracketed ASCII paste/burst, one write"
+        },
+        "finite_output": {
+          "wall_seconds": 0.193843375,
+          "driver_cpu_seconds": 0.02077,
+          "cpu_user_seconds": 0.185754416,
+          "cpu_system_seconds": 0.108827042,
+          "cpu_total_seconds": 0.294581458,
+          "cpu_sample_wall_seconds": 0.193879,
+          "cpu_percent_one_core": 151.94087962079442,
+          "cpu_before": {
+            "sample_ns": 7995640083,
+            "user_ticks": 623613,
+            "system_ticks": 3099712,
+            "user_ns": 25983875,
+            "system_ns": 129154666,
+            "threads": 130,
+            "resident_bytes": 31309824,
+            "virtual_bytes": 446190108672
+          },
+          "cpu_after": {
+            "sample_ns": 8189519083,
+            "user_ticks": 5081719,
+            "system_ticks": 5711561,
+            "user_ns": 211738291,
+            "system_ns": 237981708,
+            "threads": 130,
+            "resident_bytes": 32129024,
+            "virtual_bytes": 446190108672
+          },
+          "host_bytes_read": 2235478,
+          "payload_bytes": 33554432,
+          "completion_seconds": 0.193792,
+          "payload_mib_per_second": 165.12549537648613
+        }
+      },
+      "tpane_pid": 91985,
+      "children": [
+        {
+          "pid": 91986,
+          "cols": 100,
+          "rows": 29
+        },
+        {
+          "pid": 91987,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91988,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91989,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91990,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91994,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91995,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91996,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91997,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91998,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 91999,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92000,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92003,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92004,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92005,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92006,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92007,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92008,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92009,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92010,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92011,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92012,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92013,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92014,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92015,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92016,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92018,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92021,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92024,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92025,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92026,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92027,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92028,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92029,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92030,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92031,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92032,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92033,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92034,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92035,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92036,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92037,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92038,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92039,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92040,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92041,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92042,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92043,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92044,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92045,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92046,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92047,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92048,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92049,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92050,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92051,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92052,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92053,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92056,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92057,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92058,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92059,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92060,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92061,
+          "cols": 100,
+          "rows": 28
+        }
+      ],
+      "startup_and_pane_creation_ms": 2588.779958,
+      "selected_viewport": [
+        100,
+        28
+      ],
+      "ps_before": "91985 91909   0:00.15 /Users/alex/Projects/tpane/target/release/tpane",
+      "ps_after": "91985 91909   0:00.45 /Users/alex/Projects/tpane/target/release/tpane"
+    },
+    {
+      "panes": 1,
+      "trial": 2,
+      "phases": {
+        "idle": {
+          "wall_seconds": 0.500996291,
+          "driver_cpu_seconds": 5.7e-05,
+          "cpu_user_seconds": 3.725e-05,
+          "cpu_system_seconds": 2.975e-05,
+          "cpu_total_seconds": 6.7e-05,
+          "cpu_sample_wall_seconds": 0.5010275,
+          "cpu_percent_one_core": 0.013372519472484046,
+          "cpu_before": {
+            "sample_ns": 9036609458,
+            "user_ticks": 35720,
+            "system_ticks": 78817,
+            "user_ns": 1488333,
+            "system_ns": 3284041,
+            "threads": 4,
+            "resident_bytes": 3276800,
+            "virtual_bytes": 445758423040
+          },
+          "cpu_after": {
+            "sample_ns": 9537636958,
+            "user_ticks": 36614,
+            "system_ticks": 79531,
+            "user_ns": 1525583,
+            "system_ns": 3313791,
+            "threads": 4,
+            "resident_bytes": 3276800,
+            "virtual_bytes": 445758423040
+          },
+          "host_bytes_read": 0
+        },
+        "input_to_render": {
+          "wall_seconds": 0.289884209,
+          "driver_cpu_seconds": 0.001756,
+          "cpu_user_seconds": 0.000357917,
+          "cpu_system_seconds": 0.00056325,
+          "cpu_total_seconds": 0.000921167,
+          "cpu_sample_wall_seconds": 0.289905417,
+          "cpu_percent_one_core": 0.31774742587855814,
+          "cpu_before": {
+            "sample_ns": 9537649666,
+            "user_ticks": 36614,
+            "system_ticks": 79531,
+            "user_ns": 1525583,
+            "system_ns": 3313791,
+            "threads": 4,
+            "resident_bytes": 3276800,
+            "virtual_bytes": 445758423040
+          },
+          "cpu_after": {
+            "sample_ns": 9827555083,
+            "user_ticks": 45204,
+            "system_ticks": 93049,
+            "user_ns": 1883500,
+            "system_ns": 3877041,
+            "threads": 4,
+            "resident_bytes": 3358720,
+            "virtual_bytes": 445758423040
+          },
+          "host_bytes_read": 3240,
+          "samples_ms": [
+            0.204708,
+            0.090792,
+            0.063542,
+            0.063917,
+            0.057125,
+            0.051916,
+            0.062375,
+            0.047333,
+            0.0525,
+            0.048417,
+            0.039208,
+            0.066375,
+            0.067625,
+            0.075542,
+            0.070667,
+            0.06525,
+            0.054875,
+            0.048375,
+            0.068334,
+            0.053709
+          ],
+          "think_times_ms": [
+            3,
+            10,
+            16,
+            16,
+            20,
+            3,
+            7,
+            19,
+            19,
+            17,
+            13,
+            18,
+            17,
+            15,
+            18,
+            14,
+            7,
+            0,
+            19,
+            2
+          ],
+          "p50_ms": 0.0629585,
+          "p95_ms": 0.09648780000000008
+        },
+        "paste_burst": {
+          "wall_seconds": 0.000289125,
+          "driver_cpu_seconds": 0.000152,
+          "cpu_user_seconds": 0.000136208,
+          "cpu_system_seconds": 0.000340875,
+          "cpu_total_seconds": 0.000477083,
+          "cpu_sample_wall_seconds": 0.00029475,
+          "cpu_percent_one_core": 161.86022052586938,
+          "cpu_before": {
+            "sample_ns": 9827567166,
+            "user_ticks": 45204,
+            "system_ticks": 93049,
+            "user_ns": 1883500,
+            "system_ns": 3877041,
+            "threads": 4,
+            "resident_bytes": 3358720,
+            "virtual_bytes": 445758423040
+          },
+          "cpu_after": {
+            "sample_ns": 9827861916,
+            "user_ticks": 48473,
+            "system_ticks": 101230,
+            "user_ns": 2019708,
+            "system_ns": 4217916,
+            "threads": 4,
+            "resident_bytes": 3391488,
+            "virtual_bytes": 445758423040
+          },
+          "host_bytes_read": 2268,
+          "keys": 100,
+          "last_ack": 120,
+          "catchup_ms": 0.239333,
+          "protocol": "unbracketed ASCII paste/burst, one write"
+        },
+        "finite_output": {
+          "wall_seconds": 0.219841584,
+          "driver_cpu_seconds": 0.053419,
+          "cpu_user_seconds": 0.176120917,
+          "cpu_system_seconds": 0.135574,
+          "cpu_total_seconds": 0.311694917,
+          "cpu_sample_wall_seconds": 0.219869541,
+          "cpu_percent_one_core": 141.76357288161165,
+          "cpu_before": {
+            "sample_ns": 9827884500,
+            "user_ticks": 48473,
+            "system_ticks": 101230,
+            "user_ns": 2019708,
+            "system_ns": 4217916,
+            "threads": 4,
+            "resident_bytes": 3391488,
+            "virtual_bytes": 445758423040
+          },
+          "cpu_after": {
+            "sample_ns": 10047754041,
+            "user_ticks": 4275375,
+            "system_ticks": 3355006,
+            "user_ns": 178140625,
+            "system_ns": 139791916,
+            "threads": 4,
+            "resident_bytes": 4227072,
+            "virtual_bytes": 445758423040
+          },
+          "host_bytes_read": 5700461,
+          "payload_bytes": 33554432,
+          "completion_seconds": 0.219800083,
+          "payload_mib_per_second": 145.58684220333075
+        }
+      },
+      "tpane_pid": 92068,
+      "children": [
+        {
+          "pid": 92069,
+          "cols": 100,
+          "rows": 29
+        }
+      ],
+      "startup_and_pane_creation_ms": 191.00625,
+      "selected_viewport": [
+        100,
+        29
+      ],
+      "ps_before": "92068 91909   0:00.01 /Users/alex/Projects/tpane/target/release/tpane",
+      "ps_after": "92068 91909   0:00.32 /Users/alex/Projects/tpane/target/release/tpane"
+    },
+    {
+      "panes": 24,
+      "trial": 2,
+      "phases": {
+        "idle": {
+          "wall_seconds": 0.502781125,
+          "driver_cpu_seconds": 4.1e-05,
+          "cpu_user_seconds": 7.5833e-05,
+          "cpu_system_seconds": 0.000148584,
+          "cpu_total_seconds": 0.000224417,
+          "cpu_sample_wall_seconds": 0.502824916,
+          "cpu_percent_one_core": 0.0446312409864749,
+          "cpu_before": {
+            "sample_ns": 11562020250,
+            "user_ticks": 234387,
+            "system_ticks": 1082002,
+            "user_ns": 9766125,
+            "system_ns": 45083416,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915791360
+          },
+          "cpu_after": {
+            "sample_ns": 12064845166,
+            "user_ticks": 236207,
+            "system_ticks": 1085568,
+            "user_ns": 9841958,
+            "system_ns": 45232000,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915791360
+          },
+          "host_bytes_read": 0
+        },
+        "input_to_render": {
+          "wall_seconds": 0.296605042,
+          "driver_cpu_seconds": 0.001876,
+          "cpu_user_seconds": 0.000575917,
+          "cpu_system_seconds": 0.000597583,
+          "cpu_total_seconds": 0.0011735,
+          "cpu_sample_wall_seconds": 0.296633458,
+          "cpu_percent_one_core": 0.395606081630886,
+          "cpu_before": {
+            "sample_ns": 12064861583,
+            "user_ticks": 236207,
+            "system_ticks": 1085568,
+            "user_ns": 9841958,
+            "system_ns": 45232000,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915791360
+          },
+          "cpu_after": {
+            "sample_ns": 12361495041,
+            "user_ticks": 250029,
+            "system_ticks": 1099910,
+            "user_ns": 10417875,
+            "system_ns": 45829583,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915791360
+          },
+          "host_bytes_read": 3240,
+          "samples_ms": [
+            0.152125,
+            0.083375,
+            0.081375,
+            0.077917,
+            0.072042,
+            0.053125,
+            0.059334,
+            0.082458,
+            0.076708,
+            0.076042,
+            0.089666,
+            0.076792,
+            0.062666,
+            0.062208,
+            0.048333,
+            0.043,
+            0.077042,
+            0.045458,
+            0.081166,
+            0.057875
+          ],
+          "think_times_ms": [
+            3,
+            10,
+            16,
+            16,
+            20,
+            3,
+            7,
+            19,
+            19,
+            17,
+            13,
+            18,
+            17,
+            15,
+            18,
+            14,
+            7,
+            0,
+            19,
+            2
+          ],
+          "p50_ms": 0.076375,
+          "p95_ms": 0.09278895000000004
+        },
+        "paste_burst": {
+          "wall_seconds": 0.000256958,
+          "driver_cpu_seconds": 0.000175,
+          "cpu_user_seconds": 0.000189208,
+          "cpu_system_seconds": 0.000281625,
+          "cpu_total_seconds": 0.000470833,
+          "cpu_sample_wall_seconds": 0.000268833,
+          "cpu_percent_one_core": 175.13958479799726,
+          "cpu_before": {
+            "sample_ns": 12361504500,
+            "user_ticks": 250029,
+            "system_ticks": 1099910,
+            "user_ns": 10417875,
+            "system_ns": 45829583,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915791360
+          },
+          "cpu_after": {
+            "sample_ns": 12361773333,
+            "user_ticks": 254570,
+            "system_ticks": 1106669,
+            "user_ns": 10607083,
+            "system_ns": 46111208,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915791360
+          },
+          "host_bytes_read": 1620,
+          "keys": 100,
+          "last_ack": 120,
+          "catchup_ms": 0.206583,
+          "protocol": "unbracketed ASCII paste/burst, one write"
+        },
+        "finite_output": {
+          "wall_seconds": 0.248800458,
+          "driver_cpu_seconds": 0.057619,
+          "cpu_user_seconds": 0.189333417,
+          "cpu_system_seconds": 0.145883333,
+          "cpu_total_seconds": 0.33521675,
+          "cpu_sample_wall_seconds": 0.248829875,
+          "cpu_percent_one_core": 134.71724406082672,
+          "cpu_before": {
+            "sample_ns": 12361784750,
+            "user_ticks": 254570,
+            "system_ticks": 1106669,
+            "user_ns": 10607083,
+            "system_ns": 46111208,
+            "threads": 50,
+            "resident_bytes": 14008320,
+            "virtual_bytes": 445915791360
+          },
+          "cpu_after": {
+            "sample_ns": 12610614625,
+            "user_ticks": 4798572,
+            "system_ticks": 4607869,
+            "user_ns": 199940500,
+            "system_ns": 191994541,
+            "threads": 50,
+            "resident_bytes": 14827520,
+            "virtual_bytes": 445915791360
+          },
+          "host_bytes_read": 5079485,
+          "payload_bytes": 33554432,
+          "completion_seconds": 0.248751917,
+          "payload_mib_per_second": 128.64222469489553
+        }
+      },
+      "tpane_pid": 92098,
+      "children": [
+        {
+          "pid": 92099,
+          "cols": 100,
+          "rows": 29
+        },
+        {
+          "pid": 92100,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92101,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92102,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92103,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92104,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92105,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92106,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92108,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92110,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92111,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92112,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92113,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92114,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92115,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92117,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92118,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92119,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92120,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92121,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92122,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92123,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92124,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92127,
+          "cols": 100,
+          "rows": 28
+        }
+      ],
+      "startup_and_pane_creation_ms": 1099.874792,
+      "selected_viewport": [
+        100,
+        28
+      ],
+      "ps_before": "92098 91909   0:00.05 /Users/alex/Projects/tpane/target/release/tpane",
+      "ps_after": "92098 91909   0:00.39 /Users/alex/Projects/tpane/target/release/tpane"
+    },
+    {
+      "panes": 64,
+      "trial": 2,
+      "phases": {
+        "idle": {
+          "wall_seconds": 0.505043792,
+          "driver_cpu_seconds": 4e-05,
+          "cpu_user_seconds": 0.000147333,
+          "cpu_system_seconds": 0.000357792,
+          "cpu_total_seconds": 0.000505125,
+          "cpu_sample_wall_seconds": 0.505102458,
+          "cpu_percent_one_core": 0.10000446285692002,
+          "cpu_before": {
+            "sample_ns": 15864110000,
+            "user_ticks": 616625,
+            "system_ticks": 3213796,
+            "user_ns": 25692708,
+            "system_ns": 133908166,
+            "threads": 130,
+            "resident_bytes": 31375360,
+            "virtual_bytes": 446189223936
+          },
+          "cpu_after": {
+            "sample_ns": 16369212458,
+            "user_ticks": 620161,
+            "system_ticks": 3222383,
+            "user_ns": 25840041,
+            "system_ns": 134265958,
+            "threads": 130,
+            "resident_bytes": 31375360,
+            "virtual_bytes": 446189223936
+          },
+          "host_bytes_read": 0
+        },
+        "input_to_render": {
+          "wall_seconds": 0.301932417,
+          "driver_cpu_seconds": 0.00279,
+          "cpu_user_seconds": 0.001051709,
+          "cpu_system_seconds": 0.000919125,
+          "cpu_total_seconds": 0.001970834,
+          "cpu_sample_wall_seconds": 0.301978875,
+          "cpu_percent_one_core": 0.6526396920976675,
+          "cpu_before": {
+            "sample_ns": 16369234416,
+            "user_ticks": 620161,
+            "system_ticks": 3222383,
+            "user_ns": 25840041,
+            "system_ns": 134265958,
+            "threads": 130,
+            "resident_bytes": 31375360,
+            "virtual_bytes": 446189223936
+          },
+          "cpu_after": {
+            "sample_ns": 16671213291,
+            "user_ticks": 645402,
+            "system_ticks": 3244442,
+            "user_ns": 26891750,
+            "system_ns": 135185083,
+            "threads": 130,
+            "resident_bytes": 31375360,
+            "virtual_bytes": 446189223936
+          },
+          "host_bytes_read": 3240,
+          "samples_ms": [
+            0.196167,
+            0.186667,
+            0.084958,
+            0.095459,
+            0.115875,
+            0.167,
+            0.078542,
+            0.088166,
+            0.096583,
+            0.086875,
+            0.087333,
+            0.15075,
+            0.087166,
+            0.154,
+            0.110709,
+            0.164625,
+            0.104416,
+            0.061,
+            0.169959,
+            0.118959
+          ],
+          "think_times_ms": [
+            3,
+            10,
+            16,
+            16,
+            20,
+            3,
+            7,
+            19,
+            19,
+            17,
+            13,
+            18,
+            17,
+            15,
+            18,
+            14,
+            7,
+            0,
+            19,
+            2
+          ],
+          "p50_ms": 0.1075625,
+          "p95_ms": 0.187142
+        },
+        "paste_burst": {
+          "wall_seconds": 0.000337041,
+          "driver_cpu_seconds": 0.0002,
+          "cpu_user_seconds": 0.000274083,
+          "cpu_system_seconds": 0.000337,
+          "cpu_total_seconds": 0.000611083,
+          "cpu_sample_wall_seconds": 0.000345166,
+          "cpu_percent_one_core": 177.0403226273735,
+          "cpu_before": {
+            "sample_ns": 16671224375,
+            "user_ticks": 645402,
+            "system_ticks": 3244442,
+            "user_ns": 26891750,
+            "system_ns": 135185083,
+            "threads": 130,
+            "resident_bytes": 31375360,
+            "virtual_bytes": 446189223936
+          },
+          "cpu_after": {
+            "sample_ns": 16671569541,
+            "user_ticks": 651980,
+            "system_ticks": 3252530,
+            "user_ns": 27165833,
+            "system_ns": 135522083,
+            "threads": 130,
+            "resident_bytes": 31375360,
+            "virtual_bytes": 446189223936
+          },
+          "host_bytes_read": 1296,
+          "keys": 100,
+          "last_ack": 120,
+          "catchup_ms": 0.29175,
+          "protocol": "unbracketed ASCII paste/burst, one write"
+        },
+        "finite_output": {
+          "wall_seconds": 0.239579208,
+          "driver_cpu_seconds": 0.035576,
+          "cpu_user_seconds": 0.207872208,
+          "cpu_system_seconds": 0.138841458,
+          "cpu_total_seconds": 0.346713666,
+          "cpu_sample_wall_seconds": 0.239620292,
+          "cpu_percent_one_core": 144.69294862556964,
+          "cpu_before": {
+            "sample_ns": 16671661958,
+            "user_ticks": 651980,
+            "system_ticks": 3252530,
+            "user_ns": 27165833,
+            "system_ns": 135522083,
+            "threads": 130,
+            "resident_bytes": 31375360,
+            "virtual_bytes": 446189223936
+          },
+          "cpu_after": {
+            "sample_ns": 16911282250,
+            "user_ticks": 5640913,
+            "system_ticks": 6584725,
+            "user_ns": 235038041,
+            "system_ns": 274363541,
+            "threads": 130,
+            "resident_bytes": 32194560,
+            "virtual_bytes": 446189223936
+          },
+          "host_bytes_read": 3118322,
+          "payload_bytes": 33554432,
+          "completion_seconds": 0.239535417,
+          "payload_mib_per_second": 133.5919355925558
+        }
+      },
+      "tpane_pid": 92139,
+      "children": [
+        {
+          "pid": 92140,
+          "cols": 100,
+          "rows": 29
+        },
+        {
+          "pid": 92142,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92143,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92144,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92145,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92146,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92147,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92148,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92149,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92150,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92151,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92152,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92153,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92155,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92156,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92157,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92158,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92159,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92160,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92161,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92162,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92163,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92164,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92165,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92166,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92167,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92168,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92169,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92170,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92171,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92172,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92173,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92174,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92175,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92176,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92177,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92178,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92179,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92180,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92181,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92182,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92183,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92186,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92187,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92188,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92189,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92190,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92191,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92194,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92195,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92198,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92201,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92202,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92203,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92204,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92205,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92206,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92207,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92208,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92209,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92210,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92211,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92212,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92214,
+          "cols": 100,
+          "rows": 28
+        }
+      ],
+      "startup_and_pane_creation_ms": 2700.568875,
+      "selected_viewport": [
+        100,
+        28
+      ],
+      "ps_before": "92139 91909   0:00.16 /Users/alex/Projects/tpane/target/release/tpane",
+      "ps_after": "92139 91909   0:00.51 /Users/alex/Projects/tpane/target/release/tpane"
+    },
+    {
+      "panes": 1,
+      "trial": 3,
+      "phases": {
+        "idle": {
+          "wall_seconds": 0.504951667,
+          "driver_cpu_seconds": 8.6e-05,
+          "cpu_user_seconds": 4.4125e-05,
+          "cpu_system_seconds": 4.5583e-05,
+          "cpu_total_seconds": 8.9708e-05,
+          "cpu_sample_wall_seconds": 0.504983833,
+          "cpu_percent_one_core": 0.01776452910721203,
+          "cpu_before": {
+            "sample_ns": 17780938500,
+            "user_ticks": 35084,
+            "system_ticks": 75900,
+            "user_ns": 1461833,
+            "system_ns": 3162500,
+            "threads": 4,
+            "resident_bytes": 3293184,
+            "virtual_bytes": 445758062592
+          },
+          "cpu_after": {
+            "sample_ns": 18285922333,
+            "user_ticks": 36143,
+            "system_ticks": 76994,
+            "user_ns": 1505958,
+            "system_ns": 3208083,
+            "threads": 4,
+            "resident_bytes": 3293184,
+            "virtual_bytes": 445758062592
+          },
+          "host_bytes_read": 0
+        },
+        "input_to_render": {
+          "wall_seconds": 0.29743475,
+          "driver_cpu_seconds": 0.002752,
+          "cpu_user_seconds": 0.000625,
+          "cpu_system_seconds": 0.000798292,
+          "cpu_total_seconds": 0.001423292,
+          "cpu_sample_wall_seconds": 0.297464084,
+          "cpu_percent_one_core": 0.4784752434179583,
+          "cpu_before": {
+            "sample_ns": 18285936791,
+            "user_ticks": 36143,
+            "system_ticks": 76994,
+            "user_ns": 1505958,
+            "system_ns": 3208083,
+            "threads": 4,
+            "resident_bytes": 3293184,
+            "virtual_bytes": 445758062592
+          },
+          "cpu_after": {
+            "sample_ns": 18583400875,
+            "user_ticks": 51143,
+            "system_ticks": 96153,
+            "user_ns": 2130958,
+            "system_ns": 4006375,
+            "threads": 4,
+            "resident_bytes": 3358720,
+            "virtual_bytes": 445758062592
+          },
+          "host_bytes_read": 3240,
+          "samples_ms": [
+            0.212208,
+            0.133375,
+            0.1,
+            0.133792,
+            0.124625,
+            0.097625,
+            0.087667,
+            0.118833,
+            0.102667,
+            0.107958,
+            0.156875,
+            0.148208,
+            0.140042,
+            0.085208,
+            0.091292,
+            0.077166,
+            0.058625,
+            0.05375,
+            0.0925,
+            0.059667
+          ],
+          "think_times_ms": [
+            3,
+            10,
+            16,
+            16,
+            20,
+            3,
+            7,
+            19,
+            19,
+            17,
+            13,
+            18,
+            17,
+            15,
+            18,
+            14,
+            7,
+            0,
+            19,
+            2
+          ],
+          "p50_ms": 0.10133349999999999,
+          "p95_ms": 0.15964165000000002
+        },
+        "paste_burst": {
+          "wall_seconds": 0.000442917,
+          "driver_cpu_seconds": 0.000207,
+          "cpu_user_seconds": 0.000257083,
+          "cpu_system_seconds": 0.000396,
+          "cpu_total_seconds": 0.000653083,
+          "cpu_sample_wall_seconds": 0.000452167,
+          "cpu_percent_one_core": 144.43402548173574,
+          "cpu_before": {
+            "sample_ns": 18583411708,
+            "user_ticks": 51143,
+            "system_ticks": 96153,
+            "user_ns": 2130958,
+            "system_ns": 4006375,
+            "threads": 4,
+            "resident_bytes": 3358720,
+            "virtual_bytes": 445758062592
+          },
+          "cpu_after": {
+            "sample_ns": 18583863875,
+            "user_ticks": 57313,
+            "system_ticks": 105657,
+            "user_ns": 2388041,
+            "system_ns": 4402375,
+            "threads": 4,
+            "resident_bytes": 3424256,
+            "virtual_bytes": 445758062592
+          },
+          "host_bytes_read": 2916,
+          "keys": 100,
+          "last_ack": 120,
+          "catchup_ms": 0.392041,
+          "protocol": "unbracketed ASCII paste/burst, one write"
+        },
+        "finite_output": {
+          "wall_seconds": 0.192531584,
+          "driver_cpu_seconds": 0.047391,
+          "cpu_user_seconds": 0.153882625,
+          "cpu_system_seconds": 0.1198895,
+          "cpu_total_seconds": 0.273772125,
+          "cpu_sample_wall_seconds": 0.192552417,
+          "cpu_percent_one_core": 142.18057049888913,
+          "cpu_before": {
+            "sample_ns": 18583873958,
+            "user_ticks": 57313,
+            "system_ticks": 105657,
+            "user_ns": 2388041,
+            "system_ns": 4402375,
+            "threads": 4,
+            "resident_bytes": 3424256,
+            "virtual_bytes": 445758062592
+          },
+          "cpu_after": {
+            "sample_ns": 18776426375,
+            "user_ticks": 3750496,
+            "system_ticks": 2983005,
+            "user_ns": 156270666,
+            "system_ns": 124291875,
+            "threads": 4,
+            "resident_bytes": 4259840,
+            "virtual_bytes": 445758062592
+          },
+          "host_bytes_read": 5651516,
+          "payload_bytes": 33554432,
+          "completion_seconds": 0.19247275,
+          "payload_mib_per_second": 166.25730135824423
+        }
+      },
+      "tpane_pid": 92224,
+      "children": [
+        {
+          "pid": 92225,
+          "cols": 100,
+          "rows": 29
+        }
+      ],
+      "startup_and_pane_creation_ms": 196.973458,
+      "selected_viewport": [
+        100,
+        29
+      ],
+      "ps_before": "92224 91909   0:00.00 /Users/alex/Projects/tpane/target/release/tpane",
+      "ps_after": "92224 91909   0:00.28 /Users/alex/Projects/tpane/target/release/tpane"
+    },
+    {
+      "panes": 24,
+      "trial": 3,
+      "phases": {
+        "idle": {
+          "wall_seconds": 0.503146917,
+          "driver_cpu_seconds": 4.3e-05,
+          "cpu_user_seconds": 9.0583e-05,
+          "cpu_system_seconds": 0.000219375,
+          "cpu_total_seconds": 0.000309958,
+          "cpu_sample_wall_seconds": 0.503192708,
+          "cpu_percent_one_core": 0.06159826942484229,
+          "cpu_before": {
+            "sample_ns": 20301826333,
+            "user_ticks": 233403,
+            "system_ticks": 1077748,
+            "user_ns": 9725125,
+            "system_ns": 44906166,
+            "threads": 50,
+            "resident_bytes": 13910016,
+            "virtual_bytes": 445915332608
+          },
+          "cpu_after": {
+            "sample_ns": 20805019041,
+            "user_ticks": 235577,
+            "system_ticks": 1083013,
+            "user_ns": 9815708,
+            "system_ns": 45125541,
+            "threads": 50,
+            "resident_bytes": 13910016,
+            "virtual_bytes": 445915332608
+          },
+          "host_bytes_read": 0
+        },
+        "input_to_render": {
+          "wall_seconds": 0.29808775,
+          "driver_cpu_seconds": 0.002501,
+          "cpu_user_seconds": 0.000746708,
+          "cpu_system_seconds": 0.000767292,
+          "cpu_total_seconds": 0.001514,
+          "cpu_sample_wall_seconds": 0.29811475,
+          "cpu_percent_one_core": 0.5078581318099825,
+          "cpu_before": {
+            "sample_ns": 20805031708,
+            "user_ticks": 235577,
+            "system_ticks": 1083013,
+            "user_ns": 9815708,
+            "system_ns": 45125541,
+            "threads": 50,
+            "resident_bytes": 13910016,
+            "virtual_bytes": 445915332608
+          },
+          "cpu_after": {
+            "sample_ns": 21103146458,
+            "user_ticks": 253498,
+            "system_ticks": 1101428,
+            "user_ns": 10562416,
+            "system_ns": 45892833,
+            "threads": 50,
+            "resident_bytes": 13910016,
+            "virtual_bytes": 445915332608
+          },
+          "host_bytes_read": 3240,
+          "samples_ms": [
+            0.200583,
+            0.099208,
+            0.093,
+            0.097375,
+            0.144209,
+            0.060209,
+            0.058959,
+            0.089083,
+            0.096958,
+            0.15375,
+            0.103375,
+            0.100709,
+            0.187167,
+            0.094584,
+            0.099083,
+            0.099958,
+            0.074042,
+            0.036834,
+            0.070209,
+            0.055125
+          ],
+          "think_times_ms": [
+            3,
+            10,
+            16,
+            16,
+            20,
+            3,
+            7,
+            19,
+            19,
+            17,
+            13,
+            18,
+            17,
+            15,
+            18,
+            14,
+            7,
+            0,
+            19,
+            2
+          ],
+          "p50_ms": 0.0971665,
+          "p95_ms": 0.1878378
+        },
+        "paste_burst": {
+          "wall_seconds": 0.000252417,
+          "driver_cpu_seconds": 0.000131,
+          "cpu_user_seconds": 0.000173375,
+          "cpu_system_seconds": 0.000246708,
+          "cpu_total_seconds": 0.000420083,
+          "cpu_sample_wall_seconds": 0.00026225,
+          "cpu_percent_one_core": 160.18417540514776,
+          "cpu_before": {
+            "sample_ns": 21103155666,
+            "user_ticks": 253498,
+            "system_ticks": 1101428,
+            "user_ns": 10562416,
+            "system_ns": 45892833,
+            "threads": 50,
+            "resident_bytes": 13910016,
+            "virtual_bytes": 445915332608
+          },
+          "cpu_after": {
+            "sample_ns": 21103417916,
+            "user_ticks": 257659,
+            "system_ticks": 1107349,
+            "user_ns": 10735791,
+            "system_ns": 46139541,
+            "threads": 50,
+            "resident_bytes": 13942784,
+            "virtual_bytes": 445915332608
+          },
+          "host_bytes_read": 1458,
+          "keys": 100,
+          "last_ack": 120,
+          "catchup_ms": 0.204917,
+          "protocol": "unbracketed ASCII paste/burst, one write"
+        },
+        "finite_output": {
+          "wall_seconds": 0.208491,
+          "driver_cpu_seconds": 0.040905,
+          "cpu_user_seconds": 0.179618084,
+          "cpu_system_seconds": 0.12762025,
+          "cpu_total_seconds": 0.307238334,
+          "cpu_sample_wall_seconds": 0.208520375,
+          "cpu_percent_one_core": 147.34211656774548,
+          "cpu_before": {
+            "sample_ns": 21103430833,
+            "user_ticks": 257659,
+            "system_ticks": 1107349,
+            "user_ns": 10735791,
+            "system_ns": 46139541,
+            "threads": 50,
+            "resident_bytes": 13942784,
+            "virtual_bytes": 445915332608
+          },
+          "cpu_after": {
+            "sample_ns": 21311951208,
+            "user_ticks": 4568493,
+            "system_ticks": 4170235,
+            "user_ns": 190353875,
+            "system_ns": 173759791,
+            "threads": 50,
+            "resident_bytes": 14778368,
+            "virtual_bytes": 445915332608
+          },
+          "host_bytes_read": 4392128,
+          "payload_bytes": 33554432,
+          "completion_seconds": 0.208448208,
+          "payload_mib_per_second": 153.5153518805976
+        }
+      },
+      "tpane_pid": 92302,
+      "children": [
+        {
+          "pid": 92303,
+          "cols": 100,
+          "rows": 29
+        },
+        {
+          "pid": 92305,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92306,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92307,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92308,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92309,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92310,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92311,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92312,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92313,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92314,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92317,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92318,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92319,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92320,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92321,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92322,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92323,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92324,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92325,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92326,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92327,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92329,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92330,
+          "cols": 100,
+          "rows": 28
+        }
+      ],
+      "startup_and_pane_creation_ms": 1125.754,
+      "selected_viewport": [
+        100,
+        28
+      ],
+      "ps_before": "92302 91909   0:00.05 /Users/alex/Projects/tpane/target/release/tpane",
+      "ps_after": "92302 91909   0:00.36 /Users/alex/Projects/tpane/target/release/tpane"
+    },
+    {
+      "panes": 64,
+      "trial": 3,
+      "phases": {
+        "idle": {
+          "wall_seconds": 0.500478792,
+          "driver_cpu_seconds": 4e-05,
+          "cpu_user_seconds": 0.000169833,
+          "cpu_system_seconds": 0.000346667,
+          "cpu_total_seconds": 0.0005165,
+          "cpu_sample_wall_seconds": 0.500524542,
+          "cpu_percent_one_core": 0.10319174319328382,
+          "cpu_before": {
+            "sample_ns": 24478004791,
+            "user_ticks": 612966,
+            "system_ticks": 3196595,
+            "user_ns": 25540250,
+            "system_ns": 133191458,
+            "threads": 130,
+            "resident_bytes": 31293440,
+            "virtual_bytes": 446189780992
+          },
+          "cpu_after": {
+            "sample_ns": 24978529333,
+            "user_ticks": 617042,
+            "system_ticks": 3204915,
+            "user_ns": 25710083,
+            "system_ns": 133538125,
+            "threads": 130,
+            "resident_bytes": 31293440,
+            "virtual_bytes": 446189780992
+          },
+          "host_bytes_read": 0
+        },
+        "input_to_render": {
+          "wall_seconds": 0.291531333,
+          "driver_cpu_seconds": 0.001903,
+          "cpu_user_seconds": 0.00079525,
+          "cpu_system_seconds": 0.000634625,
+          "cpu_total_seconds": 0.001429875,
+          "cpu_sample_wall_seconds": 0.2915725,
+          "cpu_percent_one_core": 0.49040118666883875,
+          "cpu_before": {
+            "sample_ns": 24978541791,
+            "user_ticks": 617042,
+            "system_ticks": 3204915,
+            "user_ns": 25710083,
+            "system_ns": 133538125,
+            "threads": 130,
+            "resident_bytes": 31293440,
+            "virtual_bytes": 446189780992
+          },
+          "cpu_after": {
+            "sample_ns": 25270114291,
+            "user_ticks": 636128,
+            "system_ticks": 3220146,
+            "user_ns": 26505333,
+            "system_ns": 134172750,
+            "threads": 130,
+            "resident_bytes": 31293440,
+            "virtual_bytes": 446189780992
+          },
+          "host_bytes_read": 3240,
+          "samples_ms": [
+            0.195625,
+            0.071791,
+            0.07525,
+            0.073333,
+            0.05675,
+            0.046792,
+            0.133375,
+            0.0775,
+            0.088042,
+            0.086583,
+            0.079375,
+            0.080167,
+            0.136083,
+            0.072375,
+            0.110959,
+            0.080958,
+            0.065333,
+            0.042667,
+            0.093584,
+            0.073667
+          ],
+          "think_times_ms": [
+            3,
+            10,
+            16,
+            16,
+            20,
+            3,
+            7,
+            19,
+            19,
+            17,
+            13,
+            18,
+            17,
+            15,
+            18,
+            14,
+            7,
+            0,
+            19,
+            2
+          ],
+          "p50_ms": 0.0784375,
+          "p95_ms": 0.13906010000000005
+        },
+        "paste_burst": {
+          "wall_seconds": 0.000491125,
+          "driver_cpu_seconds": 0.000219,
+          "cpu_user_seconds": 0.000298792,
+          "cpu_system_seconds": 0.000328166,
+          "cpu_total_seconds": 0.000626958,
+          "cpu_sample_wall_seconds": 0.000506792,
+          "cpu_percent_one_core": 123.71110830478776,
+          "cpu_before": {
+            "sample_ns": 25270127541,
+            "user_ticks": 636128,
+            "system_ticks": 3220146,
+            "user_ns": 26505333,
+            "system_ns": 134172750,
+            "threads": 130,
+            "resident_bytes": 31293440,
+            "virtual_bytes": 446189780992
+          },
+          "cpu_after": {
+            "sample_ns": 25270634333,
+            "user_ticks": 643299,
+            "system_ticks": 3228022,
+            "user_ns": 26804125,
+            "system_ns": 134500916,
+            "threads": 130,
+            "resident_bytes": 31293440,
+            "virtual_bytes": 446189780992
+          },
+          "host_bytes_read": 810,
+          "keys": 100,
+          "last_ack": 120,
+          "catchup_ms": 0.388542,
+          "protocol": "unbracketed ASCII paste/burst, one write"
+        },
+        "finite_output": {
+          "wall_seconds": 0.214431458,
+          "driver_cpu_seconds": 0.024128,
+          "cpu_user_seconds": 0.204218291,
+          "cpu_system_seconds": 0.123159625,
+          "cpu_total_seconds": 0.327377916,
+          "cpu_sample_wall_seconds": 0.214477959,
+          "cpu_percent_one_core": 152.63942156405918,
+          "cpu_before": {
+            "sample_ns": 25270649541,
+            "user_ticks": 643299,
+            "system_ticks": 3228022,
+            "user_ns": 26804125,
+            "system_ns": 134500916,
+            "threads": 130,
+            "resident_bytes": 31293440,
+            "virtual_bytes": 446189780992
+          },
+          "cpu_after": {
+            "sample_ns": 25485127500,
+            "user_ticks": 5544538,
+            "system_ticks": 6183853,
+            "user_ns": 231022416,
+            "system_ns": 257660541,
+            "threads": 130,
+            "resident_bytes": 32112640,
+            "virtual_bytes": 446189780992
+          },
+          "host_bytes_read": 2415200,
+          "payload_bytes": 33554432,
+          "completion_seconds": 0.214373458,
+          "payload_mib_per_second": 149.27221074168614
+        }
+      },
+      "tpane_pid": 92339,
+      "children": [
+        {
+          "pid": 92340,
+          "cols": 100,
+          "rows": 29
+        },
+        {
+          "pid": 92341,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92342,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92343,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92344,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92346,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92349,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92351,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92352,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92353,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92354,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92355,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92356,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92357,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92358,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92359,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92360,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92361,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92362,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92363,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92364,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92365,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92366,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92367,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92368,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92375,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92379,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92380,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92381,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92382,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92383,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92385,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92386,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92388,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92389,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92390,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92391,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92392,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92393,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92394,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92395,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92396,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92397,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92398,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92399,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92400,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92401,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92404,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92406,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92409,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92410,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92411,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92412,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92413,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92414,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92415,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92416,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92417,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92418,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92419,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92420,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92421,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92422,
+          "cols": 100,
+          "rows": 28
+        },
+        {
+          "pid": 92423,
+          "cols": 100,
+          "rows": 28
+        }
+      ],
+      "startup_and_pane_creation_ms": 2671.818458,
+      "selected_viewport": [
+        100,
+        28
+      ],
+      "ps_before": "92339 91909   0:00.16 /Users/alex/Projects/tpane/target/release/tpane",
+      "ps_after": "92339 91909   0:00.49 /Users/alex/Projects/tpane/target/release/tpane"
+    }
+  ]
+}

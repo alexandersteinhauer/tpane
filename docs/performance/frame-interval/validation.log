@@ -1,0 +1,186 @@
+   Compiling tpane v0.1.0 (/Users/alex/Projects/tpane)
+    Finished `release` profile [optimized] target(s) in 4.68s
+    Checking tpane v0.1.0 (/Users/alex/Projects/tpane)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.60s
+   Compiling tpane v0.1.0 (/Users/alex/Projects/tpane)
+    Finished `release` profile [optimized] target(s) in 4.52s
+     Running unittests src/main.rs (target/release/deps/tpane-6a2ecb8672924430)
+
+running 39 tests
+test app::tests::a_clean_render_does_not_count_as_a_presented_frame ... ok
+test app::tests::banner_text_is_bounded_and_cannot_inject_terminal_sequences ... ok
+test app::tests::painted_controls_match_layout_hit_targets ... ok
+test engine::tests::alternate_screen_restores_shell_and_resize_preserves_history ... ok
+test engine::tests::answers_cursor_and_device_queries_without_contacting_host ... ok
+test engine::tests::resize_emits_in_band_reports_without_more_pty_output ... ok
+test input::tests::control_alt_unicode_and_release ... ok
+test input::tests::cursor_and_kitty_modes_are_refreshed ... ok
+test input::tests::function_key_keypad_and_kitty_text ... ok
+test input::tests::mouse_tracking_buttons_wheel_and_resize ... ok
+test input::tests::paste_and_focus_follow_terminal_modes ... ok
+test io_worker::tests::a_full_pty_cannot_block_the_main_thread_and_input_is_bounded ... ok
+test pty::tests::concurrent_allocations_keep_independent_sizes ... ok
+test pty::tests::cwd_tracks_cd_and_rejects_unavailable_identity ... ok
+test pty::tests::drop_after_shell_exit_kills_orphaned_background_job ... ok
+test pty::tests::drop_is_bounded_with_a_full_input_queue ... ok
+test pty::tests::drop_kills_background_job_in_another_group_even_if_stopped ... ok
+test pty::tests::drop_kills_descendant_that_created_a_new_session ... ok
+test pty::tests::foreground_job_exits_and_ctrl_c_returns_to_shell ... ok
+test pty::tests::output_environment_login_and_cwd ... ok
+test pty::tests::rejects_invalid_shell_and_dimensions ... ok
+test pty::tests::resize_reaches_slave ... ok
+test pty::tests::spawn_in_uses_requested_directory ... ok
+test render::tests::does_not_scroll_when_painting_bottom_right_and_skips_clean_frames ... ok
+test render::tests::offset_and_forced_redraw_preserve_ancestor_bars ... ok
+test render::tests::renders_erased_background_cells_and_dynamic_default_colors ... ok
+test render::tests::renders_wide_combining_and_colored_text_without_shifting_columns ... ok
+test selection::tests::selects_and_copies_from_independent_scrollback ... ok
+test tree::tests::active_bars_include_leaf_and_depths_include_hidden_branches ... ok
+test tree::tests::closing_selection_prefers_next_then_previous_sibling ... ok
+test tree::tests::empty_tree_and_maximum_dimensions_are_safe ... ok
+test tree::tests::hit_testing_matches_every_rendered_cell_even_at_narrow_dimensions ... ok
+test tree::tests::missing_targets_and_nonchild_selections_are_noops ... ok
+test tree::tests::nesting_preserves_terminal_ids_and_selection ... ok
+test tree::tests::proportional_widths_and_close_controls_have_exact_boundaries ... ok
+test tree::tests::removal_preserves_selected_identity_and_single_child_groups ... ok
+test tree::tests::small_heights_clip_bars_but_reserve_terminal_row_and_true_depth ... ok
+test tree::tests::subtree_and_root_removal_report_all_leaves_in_order ... ok
+test wake::tests::notifications_before_wait_are_not_lost ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.08s
+
+     Running tests/terminal.rs (target/release/deps/terminal-87a8a85d4da4a069)
+
+running 20 tests
+test background_job_does_not_prompt_and_is_cleaned_up_with_its_tab ... ok
+test command_returns_to_the_same_interactive_shell ... ok
+test ctrl_c_interrupts_foreground_job_not_tpane ... ok
+test external_sigterm_restores_host_and_kills_inner_session ... ok
+test first_plus_preserves_shell_state_and_inherits_active_cwd ... ok
+test full_pty_input_keeps_ui_responsive_and_delivers_every_byte_in_order ... ok
+test full_pty_input_subtree_close_and_reopen_leave_no_children ... ok
+test hidden_pane_drains_output_and_receives_in_band_resize ... ok
+test host_resize_reaches_child_stty ... ok
+test idle_editor_resizes_without_keyboard_input ... ok
+test idle_neovim_resizes_without_keyboard_input ... ok
+test in_band_resize_report_arrives_while_application_is_idle ... ok
+test nested_chrome_is_consumed_and_terminal_mouse_uses_leaf_coordinates ... ok
+test recursive_tabs_restore_selected_descendants_and_prune_only_empty_groups ... ok
+test repeated_switches_redraw_clean_terminal_engines_without_stale_cells ... ok
+test sgr_mouse_press_is_forwarded_to_tracking_application ... ok
+test shell_exit_status_and_host_terminal_are_restored ... ok
+test subtree_close_confirms_foreground_job_and_cancel_preserves_every_session ... ok
+test sustained_output_does_not_starve_ctrl_c_or_the_next_command ... ok
+test vi_alternate_screen_returns_to_shell_contents ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.78s
+
+    Updating crates.io index
+     Locking 13 packages to latest Rust 1.98 compatible versions
+      Adding bytes v1.12.1
+      Adding futures-core v0.3.34
+      Adding futures-macro v0.3.34
+      Adding futures-sink v0.3.34
+      Adding futures-task v0.3.34
+      Adding futures-util v0.3.34
+      Adding pin-project-lite v0.2.17
+      Adding slab v0.4.12
+      Adding socket2 v0.6.5
+      Adding syn v3.0.5
+      Adding tokio v1.53.1
+      Adding tokio-macros v2.7.2
+      Adding tokio-util v0.7.19
+   Compiling tpane v0.1.0 (/Users/alex/Projects/tpane/.tools/perf/tokio-native)
+    Finished `release` profile [optimized] target(s) in 6.86s
+
+Tokio-native prototype: /Users/alex/Projects/tpane/.tools/perf/tpane-tokio-native
+    Checking tpane v0.1.0 (/Users/alex/Projects/tpane/.tools/perf/tokio-native)
+    Finished `release` profile [optimized] target(s) in 0.57s
+   Compiling tpane v0.1.0 (/Users/alex/Projects/tpane/.tools/perf/tokio-native)
+    Finished `release` profile [optimized] target(s) in 5.79s
+     Running unittests src/main.rs (target/perf-tokio-native/release/deps/tpane-dd70682aaa7de8b1)
+
+running 53 tests
+test app::tests::a_clean_render_does_not_count_as_a_presented_frame ... ok
+test app::tests::banner_text_is_bounded_and_cannot_inject_terminal_sequences ... ok
+test app::tests::painted_controls_match_layout_hit_targets ... ok
+test engine::tests::alternate_screen_restores_shell_and_resize_preserves_history ... ok
+test engine::tests::answers_cursor_and_device_queries_without_contacting_host ... ok
+test engine::tests::resize_emits_in_band_reports_without_more_pty_output ... ok
+test input::tests::control_alt_unicode_and_release ... ok
+test input::tests::cursor_and_kitty_modes_are_refreshed ... ok
+test input::tests::function_key_keypad_and_kitty_text ... ok
+test input::tests::mouse_tracking_buttons_wheel_and_resize ... ok
+test input::tests::paste_and_focus_follow_terminal_modes ... ok
+test output::tests::blocked_finish_cancels_and_restores_flags ... ok
+test output::tests::drop_cleans_up_on_runtime_yield ... ok
+test output::tests::full_queue_does_not_replace_accepted_frame ... ok
+test output::tests::large_frames_order_and_runtime_progress_while_blocked ... ok
+test output::tests::preserves_preexisting_nonblocking_flags ... ok
+test output::tests::write_error_is_exact_and_reported_once ... ok
+test process_watch::tests::live_exit_exact_id_and_unwatch ... ok
+test process_watch::tests::quick_exit_registration_race ... ok
+test pty::tests::concurrent_allocations_keep_independent_sizes ... ok
+test pty::tests::cwd_tracks_cd_and_rejects_unavailable_identity ... ok
+test pty::tests::drop_after_shell_exit_kills_orphaned_background_job ... ok
+test pty::tests::drop_is_bounded_with_a_full_input_queue ... ok
+test pty::tests::drop_kills_background_job_in_another_group_even_if_stopped ... ok
+test pty::tests::drop_kills_descendant_that_created_a_new_session ... ok
+test pty::tests::foreground_job_exits_and_ctrl_c_returns_to_shell ... ok
+test pty::tests::output_environment_login_and_cwd ... ok
+test pty::tests::rejects_invalid_shell_and_dimensions ... ok
+test pty::tests::resize_reaches_slave ... ok
+test pty::tests::spawn_in_uses_requested_directory ... ok
+test render::tests::does_not_scroll_when_painting_bottom_right_and_skips_clean_frames ... ok
+test render::tests::offset_and_forced_redraw_preserve_ancestor_bars ... ok
+test render::tests::renders_erased_background_cells_and_dynamic_default_colors ... ok
+test render::tests::renders_wide_combining_and_colored_text_without_shifting_columns ... ok
+test selection::tests::selects_and_copies_from_independent_scrollback ... ok
+test transport::tests::cancellation_before_first_poll_and_while_blocked_releases_fd_and_counts ... ok
+test transport::tests::direct_routing_held_pane_credits_and_eof_after_exact_output ... ok
+test transport::tests::dropping_writer_drains_fifo_and_dropping_bus_stops_idle_reader ... ok
+test transport::tests::large_partial_input_exact_bounded_including_inflight_without_flush ... ok
+test transport::tests::millions_of_tiny_writes_coalesce_into_bounded_metadata_and_preserve_fifo ... ok
+test transport::tests::read_error_is_on_data_bus_after_preceding_output ... ok
+test transport::tests::real_pty_hangup_is_ordered_eof_and_duplicate_is_cloexec ... ok
+test transport::tests::write_failure_once_on_control_clears_queue_and_reports_status ... ok
+test tree::tests::active_bars_include_leaf_and_depths_include_hidden_branches ... ok
+test tree::tests::closing_selection_prefers_next_then_previous_sibling ... ok
+test tree::tests::empty_tree_and_maximum_dimensions_are_safe ... ok
+test tree::tests::hit_testing_matches_every_rendered_cell_even_at_narrow_dimensions ... ok
+test tree::tests::missing_targets_and_nonchild_selections_are_noops ... ok
+test tree::tests::nesting_preserves_terminal_ids_and_selection ... ok
+test tree::tests::proportional_widths_and_close_controls_have_exact_boundaries ... ok
+test tree::tests::removal_preserves_selected_identity_and_single_child_groups ... ok
+test tree::tests::small_heights_clip_bars_but_reserve_terminal_row_and_true_depth ... ok
+test tree::tests::subtree_and_root_removal_report_all_leaves_in_order ... ok
+
+test result: ok. 53 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.86s
+
+     Running tests/terminal.rs (target/perf-tokio-native/release/deps/terminal-cea9713773eebd22)
+
+running 21 tests
+test background_job_does_not_prompt_and_is_cleaned_up_with_its_tab ... ok
+test command_returns_to_the_same_interactive_shell ... ok
+test ctrl_c_interrupts_foreground_job_not_tpane ... ok
+test external_sigterm_restores_host_and_kills_inner_session ... ok
+test first_plus_preserves_shell_state_and_inherits_active_cwd ... ok
+test full_pty_input_keeps_ui_responsive_and_delivers_every_byte_in_order ... ok
+test full_pty_input_subtree_close_and_reopen_leave_no_children ... ok
+test hidden_pane_drains_output_and_receives_in_band_resize ... ok
+test host_resize_reaches_child_stty ... ok
+test idle_editor_resizes_without_keyboard_input ... ok
+test idle_neovim_resizes_without_keyboard_input ... ok
+test in_band_resize_report_arrives_while_application_is_idle ... ok
+test nested_chrome_is_consumed_and_terminal_mouse_uses_leaf_coordinates ... ok
+test recursive_tabs_restore_selected_descendants_and_prune_only_empty_groups ... ok
+test repeated_switches_redraw_clean_terminal_engines_without_stale_cells ... ok
+test sgr_mouse_press_is_forwarded_to_tracking_application ... ok
+test shell_exit_status_and_host_terminal_are_restored ... ok
+test slow_host_output_does_not_block_input_or_bounded_shutdown ... ok
+test subtree_close_confirms_foreground_job_and_cancel_preserves_every_session ... ok
+test sustained_output_does_not_starve_ctrl_c_or_the_next_command ... ok
+test vi_alternate_screen_returns_to_shell_contents ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.28s
+

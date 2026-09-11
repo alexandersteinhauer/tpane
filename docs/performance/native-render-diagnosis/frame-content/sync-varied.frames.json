@@ -1,0 +1,67 @@
+{
+  "performance_comparison_valid": false,
+  "scope": "finite output only; segments containing sync-begin, ended by sync-end; extra standalone end markers excluded",
+  "frames": 1808,
+  "unique_wire_frames": 68,
+  "consecutive_identical_frames": 0,
+  "most_common": [
+    [
+      "7f4c088c1fe0b477052736177eab548d8037d7bd349f9af7eec4f3397aa36343",
+      39
+    ],
+    [
+      "6b9435b107cbee0dff7f70402ae12a818934a0e826c30ba1a1c372b7d9515baf",
+      39
+    ],
+    [
+      "cba5d8795dc9bb9c568dd2533487a44dd43f08ae3256857e6ed76b05fd76bf35",
+      39
+    ],
+    [
+      "770068e44e3846e0d19f0c40e8c3f7f07cc7a68961b2d377520d38df29eb95bc",
+      37
+    ],
+    [
+      "c0619246d5d45d7dc4fae23d1663965c16e5526eb446010962e8e026510e382e",
+      37
+    ],
+    [
+      "944ca2254232fd9f8b3e334e59d5ae7a769102e1a459790881cf390e9ad4c3ae",
+      37
+    ],
+    [
+      "50aab9bbb1abd3fbda38e3fde0344191a168f64809f1a4672c517d19f56a05eb",
+      37
+    ],
+    [
+      "c2ed444eda26320c0d7b595b0d0d66aab8591f5df9eb56546081a92243eb59b5",
+      36
+    ],
+    [
+      "bd15bef81a6866bb774a6f6e3b185e0fff09fdf4a1e73e3c8480c6168f86755a",
+      36
+    ],
+    [
+      "347a18ed0521581730173b707f5a38863b481edfe4efb39885f17c855be7421d",
+      36
+    ]
+  ],
+  "sizes": {
+    "3248": 3,
+    "3247": 1805
+  },
+  "examples": {
+    "b867da7f478178f0956e1a3caff54ffb4521185c2b3c2a79efe7df073eb2b722": {
+      "size": 3248,
+      "prefix": "b'\\x1b[?2026h\\x1b[?25l\\x1b[2;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000035 status=200 bytes=4096                                       \\x1b[3;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000036 status=200 bytes=4096     '"
+    },
+    "a3bf57427b89a2471dbfe8478302c1c9af3880a68538bf5ad2e3d72a24f8a539": {
+      "size": 3248,
+      "prefix": "b'\\x1b[?2026h\\x1b[?25l\\x1b[2;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000419 status=200 bytes=4096                                       \\x1b[3;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000420 status=200 bytes=4096     '"
+    },
+    "945047b6bc82981af266de97dcd4ea434cf788f4d68dddf015ddcaaf700b2763": {
+      "size": 3248,
+      "prefix": "b'\\x1b[?2026h\\x1b[?25l\\x1b[2;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000771 status=200 bytes=4096                                       \\x1b[3;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000772 status=200 bytes=4096     '"
+    }
+  }
+}

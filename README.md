@@ -51,12 +51,27 @@ The application handles resize, alternate screens, cursor style, Unicode, colors
 - Host events use Crossterm's level-triggered `/dev/tty` backend so simultaneous resize and keyboard readiness are not lost.
 - A pure pane tree holds terminal IDs and selected children. The main thread owns each terminal's independent Ghostty state, selection, input encoding, and renderer.
 - Native PTY allocation is serialized within the process to avoid concurrent macOS allocation failures; terminal I/O and child execution remain independent.
-- Each terminal has a blocking PTY reader and bounded channel. Round-robin polling with a global output budget keeps hidden terminals progressing while rendering only the active terminal at up to approximately 60 FPS.
+- Each terminal has a blocking PTY reader and bounded channel. A dedicated host-input reader and the PTY workers wake the main thread when work arrives. Round-robin output draining is bounded to 64 chunks or approximately 2 ms per turn so input remains responsive.
+- The main loop parks when idle instead of polling every 4 ms. Changed visible state renders after each bounded work batch, with no frame-rate cap. Child status checks run at 100 ms intervals or after EOF.
 - All terminals, including hidden ones, are resized according to their nesting depth. Ancestor bars are excluded from PTY dimensions; mouse coordinates are translated into terminal-local coordinates. In-band resize replies are flushed even without child output.
 - Tab switching forces a complete redraw of the selected terminal, including when its cached render state was clean. Subtree process cleanup runs on worker threads and is joined before application exit.
 - A blocking PTY writer keeps a stopped program or a large paste from blocking rendering and shutdown. Outstanding input is limited to 8 MiB; exceeding the limit produces an error rather than unbounded allocation.
 - Terminal replies are handled locally, not forwarded as queries to the host.
 - Normal exit, errors, Rust panic unwinding, SIGHUP, SIGTERM, SIGINT, and SIGQUIT restore the host terminal and initiate child cleanup. Raw keyboard Ctrl-C still reaches the child PTY.
+
+## Performance
+
+Both implementations now have no frame-rate cap; see the [capped/uncapped retest](docs/FRAME_INTERVAL.md). The follow-up [I/O execution investigation](docs/IO_EXECUTION.md) separates Tokio I/O progress from synchronous rendering while retaining caller-thread ownership of Ghostty.
+
+See [the measured event-loop comparison](docs/PERFORMANCE.md) and its raw results. The optimized synchronous loop removes the tabbed version's output throttling and reduces median input latency and idle CPU in the tested workloads. A current-thread Tokio prototype showed no consistent advantage at 1–24 panes, so the production build remains synchronous.
+
+```sh
+python3 scripts/benchmark.py --binary target/release/tpane --output results.json
+```
+
+Use an otherwise idle machine and run variants serially. This measures completed PTY frames, not physical display latency. `scripts/benchmark-tokio.sh` builds an isolated optional prototype without adding Tokio to the production dependencies.
+
+The [AsyncFd PTY comparison](docs/ASYNC_PTY.md) removes per-pane I/O threads but retains the old coordinator. The subsequent [Tokio-native coordinator](docs/TOKIO_NATIVE.md) removes pane/status polling, batches targeted events, and makes host output nonblocking. It shows substantial CPU and aggregate-output gains with multiple busy panes, though it is not faster on every workload. Both remain isolated experiments; `scripts/benchmark-tokio-native.sh` builds the full coordinator without replacing the default.
 
 ## Validation
 

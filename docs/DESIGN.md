@@ -71,10 +71,11 @@ The UI is rendered inside the host terminal. Bars and buttons are mouse-clickabl
 ## Implementation principles
 
 - Write the application in Rust.
-- The MVP uses synchronous Rust with bounded PTY reader/writer threads, not an async runtime. Reevaluate async only if later I/O needs justify it. If async is introduced, use Tokio; do not assume async is inherently faster.
+- The MVP uses synchronous Rust with bounded PTY reader/writer threads, not an async runtime. Workers notify the main thread when work arrives; idle waiting is event-driven rather than a fixed polling interval. A current-thread Tokio event-loop prototype was benchmarked at 1, 8, and 24 panes without a consistent performance advantage; see [PERFORMANCE.md](PERFORMANCE.md). If later I/O needs justify async, use Tokio.
 - Keep ownership of the pane tree and terminal state straightforward, with explicit lifecycle management. The tree contains stable IDs; a separate map owns each terminal's state, PTY, and I/O workers.
 - Resize hidden terminals too, subtracting their ancestor bars and leaf bar from the host height. Clip deeper bars only when necessary to preserve one terminal row in a very short window.
-- Bound output processing across terminals and rotate polling order. Switching tabs forces a redraw even if the selected terminal's render cache is clean.
+- Bound output processing across terminals and rotate polling order. Drain ready output within the budget instead of sleeping after each chunk. Switching tabs forces a redraw even if the selected terminal's render cache is clean.
+- Render only when visible state may have changed, without an artificial frame interval. Batch queued host input and retain wake notifications that arrive before the main thread waits. Async host output retains one incremental frame in flight and renders pending changes when that write completes.
 - Translate mouse coordinates into the active terminal's content area. Tab controls consume their mouse press/release so clicking the UI does not inject input into a terminal.
 - Perform closed-subtree process cleanup off the UI thread and wait for outstanding cleanup before application exit.
 - Keep terminal parsing and state updates synchronous, separate from I/O. The current Ghostty Rust bindings expose non-`Send`, non-`Sync` terminal objects, so keep them on one thread. If Tokio is selected, a current-thread runtime and local tasks can support this architecture.

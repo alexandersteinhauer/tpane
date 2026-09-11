@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "environment": {
+    "utc_started": "2026-09-11T08:17:36.186681+00:00",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "machine": "arm64",
+    "macos": "26.6.2",
+    "python": "3.9.6 (default, May 22 2026, 11:13:45) \n[Clang 21.0.0 (clang-2100.1.1.101)]",
+    "python_executable": "/Library/Developer/CommandLineTools/usr/bin/python3",
+    "logical_cpus": 18,
+    "hardware_model": "Mac17,9",
+    "cpu_brand": "Apple M5 Pro",
+    "binary": "/Users/alex/Projects/tpane/.tools/perf/tpane-tokio-native",
+    "binary_sha256": "cff7238bdabe4a641df1e8d21ac537af2a7ca46ec4cd9188c5f3c76b0fee4195",
+    "binary_size": 2670144,
+    "cpu_counter_validation": {
+      "mach_timebase_numer": 125,
+      "mach_timebase_denom": 3,
+      "driver_libproc_cpu_ns": 43251499,
+      "driver_process_time_ns": 43264000,
+      "tolerance": "max(2ms, 5%); no busy-loop calibration"
+    },
+    "harness_sha256": "69102e538b14991339fdb79915ca9c685f59de8a6f35904aeb9a07adc5f1d41c",
+    "fixture_sha256": "f268d3fa8a2b223c2b7db3d7b81d3939e6a004faef0d6d5cf98de7bca6d7735e",
+    "outer_pty": {
+      "cols": 100,
+      "rows": 30,
+      "pixel_width": 0,
+      "pixel_height": 0
+    },
+    "host_term": "xterm-256color",
+    "host_colorterm": "truecolor",
+    "environment_policy": "allowlist; temporary HOME/PWD/SHELL/XDG/TMPDIR; no user configs",
+    "binary_sha256_after": "cff7238bdabe4a641df1e8d21ac537af2a7ca46ec4cd9188c5f3c76b0fee4195"
+  },
+  "options": {
+    "binary": "/Users/alex/Projects/tpane/.tools/perf/tpane-tokio-native",
+    "panes": [
+      1
+    ],
+    "root_bar_rows": 1,
+    "trials": 1,
+    "output": "/Users/alex/Projects/tpane/docs/performance/native-render-diagnosis/frame-content/native-varied.profiled.json",
+    "keys": 3,
+    "burst_keys": 100,
+    "output_bytes": 33554432,
+    "idle_seconds": 0.1,
+    "settle_seconds": 0.3,
+    "timeout": 30.0,
+    "seed": 2026
+  },
+  "method": {
+    "latency": "write start to ASCII ACK plus following ESC[?2026l received on outer PTY",
+    "percentiles": "linear interpolation at (n-1)*p, per trial",
+    "cpu": "PROC_PIDTASKINFO=4, 96-byte Darwin proc_taskinfo; pti_total_user/system Mach ticks converted to ns with mach_timebase_info",
+    "cpu_scope": "tpane PID, all threads; excludes Python children and benchmark driver",
+    "memory": "tpane PID resident and virtual bytes at phase boundaries, not peak or system-wide memory",
+    "cpu_percent": "100% = one fully occupied core; may exceed 100%",
+    "ps": "before/after PID, PPID, aggregate CPU time, command; coarse corroboration only",
+    "order": "trial-major, pane counts in CLI order; fresh process per case",
+    "limitations": [
+      "not physical display or Ghostty GUI latency",
+      "driver scheduling, PTY transport and Python backend affect wall time",
+      "finite-output throughput includes backend production and final render; frames may coalesce",
+      "latency CPU includes 0-20ms seeded think times",
+      "1 pane has 29 terminal rows; multiple panes have 28 (two bars)",
+      "CPU sample boundaries include small libproc-call overhead",
+      "no control over unrelated load, thermals, power state or binary build flags",
+      "ps CPU time is coarse; ABI/thread count/monotonicity checked; timebase conversion checked against driver process_time_ns"
+    ]
+  },
+  "trials": [
+    {
+      "panes": 1,
+      "trial": 1,
+      "phases": {
+        "idle": {
+          "wall_seconds": 0.103471625,
+          "driver_cpu_seconds": 3.8e-05,
+          "cpu_user_seconds": 0.0,
+          "cpu_system_seconds": 0.0,
+          "cpu_total_seconds": 0.0,
+          "cpu_sample_wall_seconds": 0.103514958,
+          "cpu_percent_one_core": 0.0,
+          "cpu_before": {
+            "sample_ns": 770839250,
+            "user_ticks": 31563,
+            "system_ticks": 86917,
+            "user_ns": 1315125,
+            "system_ns": 3621541,
+            "threads": 2,
+            "resident_bytes": 3637248,
+            "virtual_bytes": 445754097664
+          },
+          "cpu_after": {
+            "sample_ns": 874354208,
+            "user_ticks": 31563,
+            "system_ticks": 86917,
+            "user_ns": 1315125,
+            "system_ns": 3621541,
+            "threads": 2,
+            "resident_bytes": 3637248,
+            "virtual_bytes": 445754097664
+          },
+          "host_bytes_read": 0
+        },
+        "input_to_render": {
+          "wall_seconds": 0.0366135,
+          "driver_cpu_seconds": 0.00062,
+          "cpu_user_seconds": 0.0001635,
+          "cpu_system_seconds": 0.000198459,
+          "cpu_total_seconds": 0.000361959,
+          "cpu_sample_wall_seconds": 0.036633416,
+          "cpu_percent_one_core": 0.9880569150308013,
+          "cpu_before": {
+            "sample_ns": 874368750,
+            "user_ticks": 31563,
+            "system_ticks": 86917,
+            "user_ns": 1315125,
+            "system_ns": 3621541,
+            "threads": 2,
+            "resident_bytes": 3637248,
+            "virtual_bytes": 445754097664
+          },
+          "cpu_after": {
+            "sample_ns": 911002166,
+            "user_ticks": 35487,
+            "system_ticks": 91680,
+            "user_ns": 1478625,
+            "system_ns": 3820000,
+            "threads": 2,
+            "resident_bytes": 3686400,
+            "virtual_bytes": 445754097664
+          },
+          "host_bytes_read": 486,
+          "samples_ms": [
+            0.221208,
+            0.156791,
+            0.116583
+          ],
+          "think_times_ms": [
+            3,
+            10,
+            16
+          ],
+          "p50_ms": 0.156791,
+          "p95_ms": 0.2147663
+        },
+        "paste_burst": {
+          "wall_seconds": 0.001554875,
+          "driver_cpu_seconds": 0.000625,
+          "cpu_user_seconds": 0.000640708,
+          "cpu_system_seconds": 0.001010041,
+          "cpu_total_seconds": 0.001650749,
+          "cpu_sample_wall_seconds": 0.001566584,
+          "cpu_percent_one_core": 105.37251752858448,
+          "cpu_before": {
+            "sample_ns": 911010666,
+            "user_ticks": 35487,
+            "system_ticks": 91680,
+            "user_ns": 1478625,
+            "system_ns": 3820000,
+            "threads": 2,
+            "resident_bytes": 3686400,
+            "virtual_bytes": 445754097664
+          },
+          "cpu_after": {
+            "sample_ns": 912577250,
+            "user_ticks": 50864,
+            "system_ticks": 115921,
+            "user_ns": 2119333,
+            "system_ns": 4830041,
+            "threads": 2,
+            "resident_bytes": 3784704,
+            "virtual_bytes": 445754097664
+          },
+          "host_bytes_read": 9072,
+          "keys": 100,
+          "last_ack": 103,
+          "catchup_ms": 1.5,
+          "protocol": "unbracketed ASCII paste/burst, one write"
+        },
+        "finite_output": {
+          "wall_seconds": 0.833128916,
+          "driver_cpu_seconds": 0.22455,
+          "cpu_user_seconds": 0.535812917,
+          "cpu_system_seconds": 0.177624417,
+          "cpu_total_seconds": 0.713437334,
+          "cpu_sample_wall_seconds": 0.833149917,
+          "cpu_percent_one_core": 85.63132750093042,
+          "cpu_before": {
+            "sample_ns": 912588041,
+            "user_ticks": 50897,
+            "system_ticks": 115951,
+            "user_ns": 2120708,
+            "system_ns": 4831291,
+            "threads": 2,
+            "resident_bytes": 3784704,
+            "virtual_bytes": 445754097664
+          },
+          "cpu_after": {
+            "sample_ns": 1745737958,
+            "user_ticks": 12910407,
+            "system_ticks": 4378937,
+            "user_ns": 537933625,
+            "system_ns": 182455708,
+            "threads": 2,
+            "resident_bytes": 4587520,
+            "virtual_bytes": 445754097664
+          },
+          "host_bytes_read": 21239072,
+          "payload_bytes": 33554432,
+          "completion_seconds": 0.833065584,
+          "payload_mib_per_second": 38.412341854708046
+        }
+      },
+      "tpane_pid": 52736,
+      "children": [
+        {
+          "pid": 52737,
+          "cols": 100,
+          "rows": 29
+        }
+      ],
+      "startup_and_pane_creation_ms": 347.811417,
+      "selected_viewport": [
+        100,
+        29
+      ],
+      "ps_before": "52736 52731   0:00.01 /Users/alex/Projects/tpane/.tools/perf/tpane-tokio-native",
+      "ps_after": "52736 52731   0:00.72 /Users/alex/Projects/tpane/.tools/perf/tpane-tokio-native"
+    }
+  ],
+  "profile": {
+    "tool": "wire frame hashing",
+    "performance_comparison_valid": false
+  }
+}

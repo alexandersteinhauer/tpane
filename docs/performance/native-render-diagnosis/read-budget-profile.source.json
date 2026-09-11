@@ -1,0 +1,119 @@
+{
+  "variant": "read-budget",
+  "instrumented": true,
+  "performance_comparison_valid": false,
+  "snapshot": {
+    "source_project": "/Users/alex/Projects/tpane/.tools/perf/visible-diagnosis/read-budget-profile.source",
+    "original_sha256": {
+      "Cargo.lock": "c8da1603d40e91cf35ef425ce67e3375d85bbc6f416bf3105afe65824d4213ff",
+      "Cargo.toml": "afb72ca9a08a2b910515456eb72a42b035b6ff9a98333fb17fadcb155cdc6739",
+      "rust-toolchain.toml": "887f9be066a15585a2c583578e84b0fcb541126d81546276bad3d2ff00d61167",
+      "src/app.rs": "6c26380d04d86f74825c5f9f3a09b3f6f2eacdc464a5f8ec213dfcb88d67015b",
+      "src/bus.rs": "d34a667c9f2adfd65a43407553303cfb6b76815328811fb1c6781f36c1c46218",
+      "src/engine.rs": "68a55bd60feeb71f9c4289bcb478c09b13a9ab9e2802488c9c84f19cb5ca2ad7",
+      "src/host.rs": "4dc92d93f46c0ce92f31356d8523c96b45e6cd9c31e6bdc0f4412c19ddf3d55c",
+      "src/input.rs": "5acfb993f1fc67fb2d9541c6c0d0bc36f845bbd77f85bd4903741b841407aeae",
+      "src/io_worker.rs": "461a1af97a0d1dfc01a55d921cb46f381ce34a83aa54778effe0ea0bf87f35b8",
+      "src/main.rs": "82900fc0ff57d6faea38487c1874cb2b928cfde425258b71d78a5756a8a57bec",
+      "src/output.rs": "8bb4f591ef912ecc102557bd0a20ad0f65664a44507cd553f086a0dc3db57f34",
+      "src/pane.rs": "25168671c49f97c84145feb57da9f21f9db05ce0f0008ff8cbabb2f90e0add36",
+      "src/process_watch.rs": "9d292f221a0f1d7228f634a39c2ec7bd0f471f74067a2b6e74bde9a3e79a080e",
+      "src/pty.rs": "1b949c9723c8f22380949747b92c93850dab13c4b527133c6196fae5ca4321d8",
+      "src/render.rs": "3eb547dd1a481e060c2e33be6598b17a63482d40c354ba4b7b4accc44f7c9cad",
+      "src/selection.rs": "7aab2da03bed79a5a274c9e041288ca84b1f8a81de4c736e571261a20a5e1de7",
+      "src/transport.rs": "343496da140e0bf79dbae026764c4490b724b2a7cd8b1a93029e166eb6532b11",
+      "src/tree.rs": "f631b3a79dad1a18ccff9d9f7956f69ce2e709cb45cc73c02db413c09969953c",
+      "src/wake.rs": "912ec3bc1addefa56fd9d12c0a73fbcfccee85fe023f532bf33c75a7e8e9e51d",
+      "tests/terminal.rs": "587337c543bd9da6b50202c94220361f488c69ff2978efb5ea7b008fba4fed00"
+    },
+    "instrumented_sha256": {
+      "Cargo.lock": "c8da1603d40e91cf35ef425ce67e3375d85bbc6f416bf3105afe65824d4213ff",
+      "Cargo.toml": "afb72ca9a08a2b910515456eb72a42b035b6ff9a98333fb17fadcb155cdc6739",
+      "rust-toolchain.toml": "887f9be066a15585a2c583578e84b0fcb541126d81546276bad3d2ff00d61167",
+      "src/app.rs": "71f889dfb0112644cb9e8d13b5e8a9cfb475887c8fb296559c7162b1e524ebfb",
+      "src/bus.rs": "d34a667c9f2adfd65a43407553303cfb6b76815328811fb1c6781f36c1c46218",
+      "src/engine.rs": "1ba2a73ba17bd0769f481ca6c957be0a1c6afd2dbdd6d0b453cb588ec0f23580",
+      "src/host.rs": "4dc92d93f46c0ce92f31356d8523c96b45e6cd9c31e6bdc0f4412c19ddf3d55c",
+      "src/input.rs": "5acfb993f1fc67fb2d9541c6c0d0bc36f845bbd77f85bd4903741b841407aeae",
+      "src/io_worker.rs": "461a1af97a0d1dfc01a55d921cb46f381ce34a83aa54778effe0ea0bf87f35b8",
+      "src/main.rs": "dc40860343340431448295527d3d467ec9c5b15ef8cdcff1a9f29e3b6bb72552",
+      "src/output.rs": "8bb4f591ef912ecc102557bd0a20ad0f65664a44507cd553f086a0dc3db57f34",
+      "src/pane.rs": "909536fd400a9c1a5609ccefbd74bf478abfb3146548d226e60ab176b9e88143",
+      "src/process_watch.rs": "9d292f221a0f1d7228f634a39c2ec7bd0f471f74067a2b6e74bde9a3e79a080e",
+      "src/profile.rs": "d1126ed2127b601a2e0b0b0a61375bac2301d3295cc4e7d93b0eb265ff627446",
+      "src/pty.rs": "9d3f67c2e8a7c06f4af98547a43b7093d20c46bd43dfa7fdfe11d92a9aa08bc7",
+      "src/render.rs": "bbd19277a474155cc05528c78037e38e81b1992a49368275b201d1499a5e8bfe",
+      "src/selection.rs": "7aab2da03bed79a5a274c9e041288ca84b1f8a81de4c736e571261a20a5e1de7",
+      "src/transport.rs": "343496da140e0bf79dbae026764c4490b724b2a7cd8b1a93029e166eb6532b11",
+      "src/tree.rs": "f631b3a79dad1a18ccff9d9f7956f69ce2e709cb45cc73c02db413c09969953c",
+      "src/wake.rs": "912ec3bc1addefa56fd9d12c0a73fbcfccee85fe023f532bf33c75a7e8e9e51d",
+      "tests/terminal.rs": "587337c543bd9da6b50202c94220361f488c69ff2978efb5ea7b008fba4fed00"
+    },
+    "transforms": [
+      {
+        "file": "src/main.rs",
+        "matched": "mod app;\n",
+        "replacement": "mod app;\nmod profile;\n"
+      },
+      {
+        "file": "src/main.rs",
+        "matched": "fn main() -> ExitCode {",
+        "replacement": "fn main() -> ExitCode {\n    let _profile_report = crate::profile::Report::new();"
+      },
+      {
+        "file": "src/engine.rs",
+        "matched": "    pub fn feed(&mut self, bytes: &[u8]) -> Result<()> {",
+        "replacement": "    pub fn feed(&mut self, bytes: &[u8]) -> Result<()> {\n        let _profile_span = crate::profile::Span::new(crate::profile::Kind::Feed);\n        crate::profile::feed_bytes(bytes.len());"
+      },
+      {
+        "file": "src/render.rs",
+        "matched": "    pub fn draw_at(\n        &mut self,\n        terminal: &Terminal<'static, '_>,\n        output: &mut impl Write,\n        top: u16,\n        force: bool,\n    ) -> Result<()> {",
+        "replacement": "    pub fn draw_at(\n        &mut self,\n        terminal: &Terminal<'static, '_>,\n        output: &mut impl Write,\n        top: u16,\n        force: bool,\n    ) -> Result<()> {\n        let _profile_span = crate::profile::Span::new(crate::profile::Kind::BuildFrame);"
+      },
+      {
+        "file": "src/app.rs",
+        "matched": "    pub fn draw(&mut self, output: &mut impl Write) -> Result<bool> {",
+        "replacement": "    pub fn draw(&mut self, output: &mut impl Write) -> Result<bool> {\n        let _profile_span = crate::profile::Span::new(crate::profile::Kind::Render);"
+      },
+      {
+        "file": "src/app.rs",
+        "matched": "    pub fn data(&mut self, event: PtyEvent) -> Result<()> {",
+        "replacement": "    pub fn data(&mut self, event: PtyEvent) -> Result<()> {\n        let _profile_span = crate::profile::Span::new(crate::profile::Kind::Dispatch);"
+      },
+      {
+        "file": "src/pane.rs",
+        "matched": "    pub fn output(&mut self, bytes: &[u8]) -> Result<()> {",
+        "replacement": "    pub fn output(&mut self, bytes: &[u8]) -> Result<()> {\n        crate::profile::pane_visit();"
+      },
+      {
+        "file": "src/pty.rs",
+        "matched": "    pub fn try_wait(&mut self) -> Result<Option<ExitStatus>> {",
+        "replacement": "    pub fn try_wait(&mut self) -> Result<Option<ExitStatus>> {\n        crate::profile::child_check();"
+      }
+    ]
+  },
+  "project_hashes": {
+    "Cargo.lock": "c8da1603d40e91cf35ef425ce67e3375d85bbc6f416bf3105afe65824d4213ff",
+    "Cargo.toml": "afb72ca9a08a2b910515456eb72a42b035b6ff9a98333fb17fadcb155cdc6739",
+    "rust-toolchain.toml": "887f9be066a15585a2c583578e84b0fcb541126d81546276bad3d2ff00d61167",
+    "src/app.rs": "71f889dfb0112644cb9e8d13b5e8a9cfb475887c8fb296559c7162b1e524ebfb",
+    "src/bus.rs": "d34a667c9f2adfd65a43407553303cfb6b76815328811fb1c6781f36c1c46218",
+    "src/diag.rs": "95ded80d22f8fa29bc140ec5aaa431e8e759d5aa1b47a6e59a6f7911df263808",
+    "src/engine.rs": "1ba2a73ba17bd0769f481ca6c957be0a1c6afd2dbdd6d0b453cb588ec0f23580",
+    "src/host.rs": "4dc92d93f46c0ce92f31356d8523c96b45e6cd9c31e6bdc0f4412c19ddf3d55c",
+    "src/input.rs": "5acfb993f1fc67fb2d9541c6c0d0bc36f845bbd77f85bd4903741b841407aeae",
+    "src/io_worker.rs": "461a1af97a0d1dfc01a55d921cb46f381ce34a83aa54778effe0ea0bf87f35b8",
+    "src/main.rs": "152737d46a38391af97f3a8fc10d3ec897ab04342cd2087f7304069a98b2a7b7",
+    "src/output.rs": "8bb4f591ef912ecc102557bd0a20ad0f65664a44507cd553f086a0dc3db57f34",
+    "src/pane.rs": "909536fd400a9c1a5609ccefbd74bf478abfb3146548d226e60ab176b9e88143",
+    "src/process_watch.rs": "9d292f221a0f1d7228f634a39c2ec7bd0f471f74067a2b6e74bde9a3e79a080e",
+    "src/profile.rs": "d1126ed2127b601a2e0b0b0a61375bac2301d3295cc4e7d93b0eb265ff627446",
+    "src/pty.rs": "9d3f67c2e8a7c06f4af98547a43b7093d20c46bd43dfa7fdfe11d92a9aa08bc7",
+    "src/render.rs": "bbd19277a474155cc05528c78037e38e81b1992a49368275b201d1499a5e8bfe",
+    "src/selection.rs": "7aab2da03bed79a5a274c9e041288ca84b1f8a81de4c736e571261a20a5e1de7",
+    "src/transport.rs": "343496da140e0bf79dbae026764c4490b724b2a7cd8b1a93029e166eb6532b11",
+    "src/tree.rs": "f631b3a79dad1a18ccff9d9f7956f69ce2e709cb45cc73c02db413c09969953c",
+    "src/wake.rs": "912ec3bc1addefa56fd9d12c0a73fbcfccee85fe023f532bf33c75a7e8e9e51d",
+    "tests/terminal.rs": "587337c543bd9da6b50202c94220361f488c69ff2978efb5ea7b008fba4fed00"
+  }
+}

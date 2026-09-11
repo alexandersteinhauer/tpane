@@ -218,6 +218,47 @@ impl Host {
         self.track_pid(&format!("__{marker}:"))
     }
 
+    // A real foreground process that cannot drain its PTY until the test
+    // explicitly releases it. Block SIGUSR1 before READY so sigwait also
+    // consumes a release delivered before it starts waiting (no pause race).
+    fn blocked_input_probe(&mut self) -> Process {
+        std::fs::write(
+            self.home.join("blocked_input.py"),
+            r#"import hashlib, os, signal, termios, tty
+signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGUSR1})
+saved = termios.tcgetattr(0)
+def read_exact(count):
+    data = bytearray()
+    while len(data) < count:
+        chunk = os.read(0, min(65536, count - len(data)))
+        if not chunk:
+            raise RuntimeError('premature EOF')
+        data.extend(chunk)
+    return data
+try:
+    tty.setraw(0)
+    # Host paste delimiters must not become part of the child's payload.
+    os.write(1, b'\x1b[?2004l\r\n__INPUT_READY:' + str(os.getpid()).encode() + b'__\r\n')
+    signal.sigwait({signal.SIGUSR1})
+    payload = read_exact(1024 * 1024)
+    # A separately queued trailer catches extra bytes after the payload too.
+    assert read_exact(12) == b'END_OF_PASTE', 'duplicated or reordered input'
+    os.write(1, b'\r\n__SHA256:' + hashlib.sha256(payload).hexdigest().encode() + b'__\r\n')
+finally:
+    termios.tcsetattr(0, termios.TCSANOW, saved)
+"#,
+        )
+        .unwrap();
+        self.send(b"/usr/bin/python3 blocked_input.py\n");
+        self.track_pid("__INPUT_READY:")
+    }
+
+    fn paste(&mut self, payload: &[u8]) {
+        self.send(b"\x1b[200~");
+        self.send(payload);
+        self.send(b"\x1b[201~");
+    }
+
     fn dimensions(&mut self, marker: &str, rows: u16) {
         // Host input and SIGWINCH are independent streams. Wait in the child
         // for the ioctl size instead of assuming the resize won that race.
@@ -267,10 +308,33 @@ impl Host {
                 Ok(0) => panic!("PTY input closed"),
                 Ok(n) => remaining = &remaining[n..],
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock => self.pump(),
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                    // A large paste needs many outer-PTY writes. Waiting only
+                    // for output imposes pump's 20 ms timeout on every short
+                    // write when the application is (correctly) silent.
+                    let mut poll = libc::pollfd {
+                        fd: self.master.as_raw_fd().unwrap(),
+                        events: libc::POLLIN | libc::POLLOUT,
+                        revents: 0,
+                    };
+                    let ready = unsafe { libc::poll(&mut poll, 1, 20) };
+                    if ready < 0 {
+                        assert_eq!(
+                            io::Error::last_os_error().kind(),
+                            io::ErrorKind::Interrupted
+                        );
+                    } else if poll.revents & libc::POLLIN != 0 {
+                        self.pump();
+                    }
+                }
                 Err(e) => panic!("PTY input: {e}"),
             }
-            assert!(Instant::now() < deadline, "PTY input timed out");
+            assert!(
+                Instant::now() < deadline,
+                "PTY input timed out with {} of {} bytes remaining",
+                remaining.len(),
+                bytes.len()
+            );
         }
         self.writer.flush().unwrap();
     }
@@ -810,6 +874,114 @@ open('hidden.done', 'w').close()
     host.bars(&[&["Shell 2"], &[]]);
     host.send(b"exit\n");
     host.wait_exit(0);
+}
+
+// Every 16-byte record is distinct, so duplicating/reordering whole PTY write
+// chunks cannot accidentally preserve the checksum of a short repeating pattern.
+fn backpressure_payload() -> Vec<u8> {
+    (0..65536)
+        .map(|i| format!("{i:015x};"))
+        .collect::<String>()
+        .into_bytes()
+}
+
+#[test]
+fn full_pty_input_keeps_ui_responsive_and_delivers_every_byte_in_order() {
+    let mut host = Host::new();
+    let probe = host.blocked_input_probe();
+    let payload = backpressure_payload();
+    assert_eq!(payload.len(), 1024 * 1024);
+    // Much larger than the kernel PTY input buffer, with no reader running.
+    host.paste(&payload);
+    host.paste(b"END_OF_PASTE");
+
+    // These events follow the complete paste in the host input stream. Their
+    // acknowledgements prove the UI is servicing input while the write stalls.
+    host.plus(0);
+    host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+    let other = host.prepare_shell("INPUT_OTHER");
+    host.resize(101, 31);
+    host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+    host.dimensions("INPUT_OTHER_SIZE", 29);
+    host.select(0, 0, 2);
+    host.until("blocked reader selected again", |s| {
+        s.contains("__INPUT_READY:")
+    });
+    assert!(probe.alive(), "blocked reader exited before release");
+    assert!(!host.visible().contains("__SHA256:"));
+
+    probe.signal(libc::SIGUSR1);
+    // SHA-256 of the numbered ASCII records above, computed independently.
+    host.until("complete ordered paste and trailer", |s| {
+        s.contains("__SHA256:b9de5284ccf4147337090f12a132c24723c70a9e00bb028f29f18173805e6664__")
+    });
+    host.wait_dead(&[probe]);
+    host.dimensions("INPUT_READER_SIZE", 29);
+    host.send(b"exit\n");
+    host.bars(&[&["Shell 2"], &[]]);
+    assert!(other.alive());
+    host.send(b"printf '__%s__\\n' AFTER_INPUT_DRAIN\n");
+    host.until("other pane usable after drain", |s| {
+        s.contains("__AFTER_INPUT_DRAIN__")
+    });
+    host.send(b"exit\n");
+    host.wait_exit(0);
+    host.wait_dead(&[host.dependents[0], other]);
+}
+
+#[test]
+fn full_pty_input_subtree_close_and_reopen_leave_no_children() {
+    let mut host = Host::new();
+    let first = host.dependents[0];
+    host.plus(0);
+    host.bars(&[&["Shell 1", "Shell 2"], &[]]);
+    let second = host.prepare_shell("INPUT_SECOND");
+    host.plus(1);
+    host.bars(&[&["Shell 1", "Tabs 5"], &["Shell 2", "Shell 4"], &[]]);
+    let fourth = host.prepare_shell("INPUT_FOURTH");
+    let probe = host.blocked_input_probe();
+    host.paste(&backpressure_payload());
+    host.select(0, 0, 2);
+    host.until("unrelated pane selected during stalled input", |s| {
+        s.contains("__SHELL:")
+    });
+    host.close_tab(0, 1, 2);
+    host.until("full-input subtree close confirmation", |s| {
+        s.contains("[Cancel] [Close]")
+    });
+    assert!(second.alive() && fourth.alive() && probe.alive());
+    host.click(host.cols - 4, 0);
+    host.bars(&[&["Shell 1"], &[]]);
+    host.wait_dead(&[second, fourth, probe]);
+
+    // Reuse the surviving group immediately, exercising active-tab teardown
+    // as well as hidden-subtree teardown. Even 64 KiB exceeds the PTY buffer.
+    for id in [6, 8] {
+        host.plus(0);
+        host.bars(&[&["Shell 1", &format!("Shell {id}")], &[]]);
+        let shell = host.prepare_shell(&format!("REOPENED_{id}"));
+        let probe = host.blocked_input_probe();
+        host.paste(&vec![b'x'; 64 * 1024]);
+        host.close_tab(0, 1, 2);
+        host.until("reopened full-input tab close confirmation", |s| {
+            s.contains("[Cancel] [Close]")
+        });
+        assert!(shell.alive() && probe.alive());
+        host.click(host.cols - 4, 0);
+        host.bars(&[&["Shell 1"], &[]]);
+        host.wait_dead(&[shell, probe]);
+        assert!(
+            first.alive(),
+            "closing stalled writer killed unrelated shell"
+        );
+        host.send(format!("printf '__%s__\\n' SURVIVED_INPUT_CLOSE_{id}\n").as_bytes());
+        host.until("surviving pane usable after stalled writer close", |s| {
+            s.contains(&format!("__SURVIVED_INPUT_CLOSE_{id}__"))
+        });
+    }
+    host.send(b"exit\n");
+    host.wait_exit(0);
+    host.wait_dead(&[first]);
 }
 
 #[test]

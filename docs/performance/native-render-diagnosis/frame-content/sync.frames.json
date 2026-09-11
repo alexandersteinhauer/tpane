@@ -1,0 +1,30 @@
+{
+  "performance_comparison_valid": false,
+  "scope": "finite output only; segments containing sync-begin, ended by sync-end; extra standalone end markers excluded",
+  "frames": 1992,
+  "unique_wire_frames": 2,
+  "consecutive_identical_frames": 1990,
+  "most_common": [
+    [
+      "dc38f88c39a274ebfbc5a2dcc60e33bd9c0b8baa6a4e55092da333a37895ce8b",
+      1991
+    ],
+    [
+      "778a8067de75f08030a8f55d5072a8027c0a0ea8df6b84edc9a066481b61fe87",
+      1
+    ]
+  ],
+  "sizes": {
+    "3247": 1992
+  },
+  "examples": {
+    "dc38f88c39a274ebfbc5a2dcc60e33bd9c0b8baa6a4e55092da333a37895ce8b": {
+      "size": 3247,
+      "prefix": "b'\\x1b[?2026h\\x1b[?25l\\x1b[2;1H\\x1b[0m2025-01-01T12:34:56 INFO request=012345 status=200 bytes=4096                                       \\x1b[3;1H\\x1b[0m2025-01-01T12:34:56 INFO request=012345 status=200 bytes=4096     '"
+    },
+    "778a8067de75f08030a8f55d5072a8027c0a0ea8df6b84edc9a066481b61fe87": {
+      "size": 3247,
+      "prefix": "b'\\x1b[?2026h\\x1b[?25l\\x1b[2;1H\\x1b[0mTPB_DONE_0000051522_00000001_END                                                                    \\x1b[3;1H\\x1b[0m                                                                  '"
+    }
+  }
+}

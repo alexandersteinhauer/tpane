@@ -1,0 +1,52 @@
+--- a/experiments/tokio-native/main.rs
++++ b/experiments/tokio-native/main.rs
+@@ -109,7 +109,6 @@
+     let result = async {
+         let mut output_busy = true;
+         let mut processed = 0;
+-        let mut batch = Vec::with_capacity(64);
+         let mut turn = Instant::now();
+         loop {
+             if let Some(code) = app.exit_code() { return Ok(code); }
+@@ -137,16 +136,13 @@
+                 }
+                 Some(expired) = app.timers.next(), if timers => app.timeout(expired.into_inner())?,
+                 Some(result) = app.cleanup.join_next(), if cleanup => { result.context("pane cleanup task")?; }
+-                event = next_activity(&mut input, &mut data, &mut batch) => match event? {
++                event = next_activity(&mut input, &mut data) => match event? {
+                     Activity::Input(Event::Resize(_, _)) => {
+                         let (cols, rows, cell) = dimensions()?;
+                         app.resize(cols, rows, cell)?;
+                     }
+                     Activity::Input(event) => app.event(event)?,
+-                    Activity::PtyBatch => {
+-                        processed += batch.len();
+-                        for event in batch.drain(..) { app.data(event)?; }
+-                    }
++                    Activity::Pty(event) => app.data(event)?,
+                 }
+             }
+             processed += 1;
+@@ -175,20 +171,16 @@
+ 
+ enum Activity {
+     Input(Event),
+-    PtyBatch,
++    Pty(PtyEvent),
+ }
+ 
+ async fn next_activity(
+     input: &mut EventStream,
+     data: &mut mpsc::Receiver<PtyEvent>,
+-    batch: &mut Vec<PtyEvent>,
+ ) -> Result<Activity> {
+     tokio::select! {
+         event = input.next() => Ok(Activity::Input(event.context("terminal input stream ended")??)),
+-        count = data.recv_many(batch, 64) => {
+-            anyhow::ensure!(count != 0, "PTY event bus closed");
+-            Ok(Activity::PtyBatch)
+-        },
++        event = data.recv() => Ok(Activity::Pty(event.context("PTY event bus closed")?)),
+     }
+ }
+ 

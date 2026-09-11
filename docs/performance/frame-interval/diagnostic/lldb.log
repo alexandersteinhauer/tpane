@@ -1,0 +1,55 @@
+(lldb) process attach --pid 27225
+Process 27225 stopped
+* thread #1, name = 'main', queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+    frame #0: 0x0000000186e8f834 libsystem_kernel.dylib`write + 8
+libsystem_kernel.dylib`write:
+->  0x186e8f834 <+8>:  b.lo   0x186e8f854               ; <+40>
+    0x186e8f838 <+12>: pacibsp 
+    0x186e8f83c <+16>: stp    x29, x30, [sp, #-0x10]!
+    0x186e8f840 <+20>: mov    x29, sp
+Target 0: (sync-uncapped) stopped.
+Executable binary set to "/Users/alex/Projects/tpane/.tools/perf/frame-interval/sync-uncapped".
+Architecture set to: arm64-apple-macosx-.
+(lldb) thread backtrace all
+* thread #1, name = 'main', queue = 'com.apple.main-thread', stop reason = signal SIGSTOP
+  * frame #0: 0x0000000186e8f834 libsystem_kernel.dylib`write + 8
+    frame #1: 0x0000000100b2546c sync-uncapped`<std::io::buffered::bufwriter::BufWriter<std::io::stdio::StdoutRaw>>::write_all_cold + 200
+    frame #2: 0x0000000100a344d8 sync-uncapped`<std::io::stdio::StdoutLock as std::io::Write>::write_all + 516
+    frame #3: 0x0000000100a37694 sync-uncapped`<tpane::app::App>::draw::<std::io::stdio::Stdout> + 2044
+    frame #4: 0x0000000100a47228 sync-uncapped`tpane::run + 5588
+    frame #5: 0x0000000100a4979c sync-uncapped`tpane::main + 24
+    frame #6: 0x0000000100a3ff10 sync-uncapped`std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode> + 12
+    frame #7: 0x0000000100a42b30 sync-uncapped`std::rt::lang_start::<std::process::ExitCode>::{closure#0} + 16
+    frame #8: 0x0000000100a29e8c sync-uncapped`std::rt::lang_start_internal + 952
+    frame #9: 0x0000000100a590f0 sync-uncapped`main + 52
+    frame #10: 0x0000000186b044e4 dyld`start + 6992
+  thread #2, name = 'terminal-input'
+    frame #0: 0x0000000186e96e80 libsystem_kernel.dylib`__select + 8
+    frame #1: 0x00000001009f1820 sync-uncapped`filedescriptor::unix::macos::poll_impl + 516
+    frame #2: 0x00000001009f0ed8 sync-uncapped`<crossterm::event::source::unix::tty::UnixInternalEventSource as crossterm::event::source::EventSource>::try_read + 572
+    frame #3: 0x00000001009ece14 sync-uncapped`crossterm::event::read + 592
+    frame #4: 0x0000000100a41b34 sync-uncapped`std::sys::backtrace::__rust_begin_short_backtrace::<tpane::io_worker::read_input::{closure#0}, ()> + 124
+    frame #5: 0x0000000100a455a8 sync-uncapped`<std::thread::lifecycle::spawn_unchecked<tpane::io_worker::read_input::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} + 88
+    frame #6: 0x0000000100a308d0 sync-uncapped`<std::sys::thread::unix::Thread>::new::thread_start + 384
+    frame #7: 0x0000000186ecfc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #3, name = 'pty-reader'
+    frame #0: 0x0000000186e8bbb0 libsystem_kernel.dylib`semaphore_wait_trap + 8
+    frame #1: 0x0000000186d15490 libdispatch.dylib`_dispatch_sema4_wait + 28
+    frame #2: 0x0000000186d15b20 libdispatch.dylib`_dispatch_semaphore_wait_slow + 132
+    frame #3: 0x0000000100a44e94 sync-uncapped`<std::sync::mpmc::array::Channel<core::result::Result<alloc::vec::Vec<u8>, core::io::error::Error>>>::send::{closure#0} + 412
+    frame #4: 0x0000000100a5492c sync-uncapped`<std::sync::mpmc::Sender<core::result::Result<alloc::vec::Vec<u8>, core::io::error::Error>>>::send + 1644
+    frame #5: 0x0000000100a42770 sync-uncapped`std::sys::backtrace::__rust_begin_short_backtrace::<tpane::io_worker::read_output::{closure#0}, ()> + 244
+    frame #6: 0x0000000100a4576c sync-uncapped`<std::thread::lifecycle::spawn_unchecked<tpane::io_worker::read_output::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} + 128
+    frame #7: 0x0000000100a308d0 sync-uncapped`<std::sys::thread::unix::Thread>::new::thread_start + 384
+    frame #8: 0x0000000186ecfc58 libsystem_pthread.dylib`_pthread_start + 136
+  thread #4, name = 'pty-writer'
+    frame #0: 0x0000000186e8bbb0 libsystem_kernel.dylib`semaphore_wait_trap + 8
+    frame #1: 0x0000000186d15490 libdispatch.dylib`_dispatch_sema4_wait + 28
+    frame #2: 0x0000000186d15b20 libdispatch.dylib`_dispatch_semaphore_wait_slow + 132
+    frame #3: 0x0000000100a45110 sync-uncapped`<std::sync::mpmc::array::Channel<alloc::vec::Vec<u8>>>::recv::{closure#1} + 408
+    frame #4: 0x0000000100a4040c sync-uncapped`std::sys::backtrace::__rust_begin_short_backtrace::<<tpane::io_worker::Writer>::new::{closure#0}, ()> + 1080
+    frame #5: 0x0000000100a4541c sync-uncapped`<std::thread::lifecycle::spawn_unchecked<<tpane::io_worker::Writer>::new::{closure#0}, ()>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0} + 116
+    frame #6: 0x0000000100a308d0 sync-uncapped`<std::sys::thread::unix::Thread>::new::thread_start + 384
+    frame #7: 0x0000000186ecfc58 libsystem_pthread.dylib`_pthread_start + 136
+(lldb) process detach
+Process 27225 detached

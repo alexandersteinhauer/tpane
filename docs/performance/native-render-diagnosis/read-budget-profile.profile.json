@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "profiled": true,
+  "performance_comparison_valid": false,
+  "measurement": "inclusive elapsed wall time, not CPU time",
+  "scope": "main entry to return, including startup, workload, drain and shutdown; not just the five-second busy window",
+  "limitations": "synchronous handlers only; nested spans overlap and must not be summed; includes blocking, descheduling and profiler overhead; excludes uninstrumented workers and async waits",
+  "counter_semantics": {"feedBytes": "bytes offered to Engine.feed, including failed calls", "paneVisits": "sync Pane.poll calls or native Pane.output calls, not unique panes", "childChecks": "Session.try_wait calls including cached status; excludes Drop direct child.try_wait"},
+  "lifetime_wall_ns": 1700526375,
+  "counts": {"feedBytes": 33558646, "paneVisits": 32838, "childChecks": 0},
+  "spans": {
+    "Feed": {"calls": 32838, "inclusive_wall_ns": 40898773},
+    "BuildFrame": {"calls": 7388, "inclusive_wall_ns": 501934561},
+    "Render": {"calls": 7388, "inclusive_wall_ns": 504903511},
+    "Dispatch": {"calls": 32838, "inclusive_wall_ns": 51888615}
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "performance_comparison_valid": false,
+  "scope": "finite output only; segments containing sync-begin, ended by sync-end; extra standalone end markers excluded",
+  "frames": 6509,
+  "unique_wire_frames": 130,
+  "consecutive_identical_frames": 0,
+  "most_common": [
+    [
+      "770068e44e3846e0d19f0c40e8c3f7f07cc7a68961b2d377520d38df29eb95bc",
+      113
+    ],
+    [
+      "cba5d8795dc9bb9c568dd2533487a44dd43f08ae3256857e6ed76b05fd76bf35",
+      113
+    ],
+    [
+      "c0619246d5d45d7dc4fae23d1663965c16e5526eb446010962e8e026510e382e",
+      111
+    ],
+    [
+      "40fa0d0f7af36b6caa76bf6e80dec7e0fd341fb2048ff20ead228bf3d03a676d",
+      110
+    ],
+    [
+      "50aab9bbb1abd3fbda38e3fde0344191a168f64809f1a4672c517d19f56a05eb",
+      109
+    ],
+    [
+      "a49a8ee36932312d1b503d8aa01ad68566a498a8c53f7aeb15299d3647877930",
+      107
+    ],
+    [
+      "19e4956429ae5289361a936eb1471e0b8570c4f41963b8a04f6c135ef72fbaa8",
+      107
+    ],
+    [
+      "ef7b0c713035a4749e00c068f8883afc5c4e0dc4932afa979364026f9e44e348",
+      106
+    ],
+    [
+      "6b9435b107cbee0dff7f70402ae12a818934a0e826c30ba1a1c372b7d9515baf",
+      106
+    ],
+    [
+      "a4060746abbe43df7189da7e2b2642214a2a315d30800c752b1d451e4fb633fc",
+      106
+    ]
+  ],
+  "sizes": {
+    "3248": 205,
+    "3247": 6304
+  },
+  "examples": {
+    "4ea7c81eeb252d041825447d18f4ef94705847a0f8b72b25a9b3ce1fb6c8f95a": {
+      "size": 3248,
+      "prefix": "b'\\x1b[?2026h\\x1b[?25l\\x1b[2;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000000 status=200 bytes=4096                                       \\x1b[3;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000001 status=200 bytes=4096     '"
+    },
+    "094e2f7143dd5ed9c6f13e21701e96817be386ed27237ee2a8182477807656e4": {
+      "size": 3248,
+      "prefix": "b'\\x1b[?2026h\\x1b[?25l\\x1b[2;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000051 status=200 bytes=4096                                       \\x1b[3;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000052 status=200 bytes=4096     '"
+    },
+    "709cd064757b284f6f1a30ef4af98da0cd145ee21e612555b76bd5eeb081fb56": {
+      "size": 3248,
+      "prefix": "b'\\x1b[?2026h\\x1b[?25l\\x1b[2;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000131 status=200 bytes=4096                                       \\x1b[3;1H\\x1b[0m2025-01-01T12:34:56 INFO request=000132 status=200 bytes=4096     '"
+    }
+  }
+}

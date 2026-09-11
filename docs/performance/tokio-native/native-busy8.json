@@ -1,0 +1,2320 @@
+{
+  "schema_version": 1,
+  "benchmark": "multi-busy-pane",
+  "status": "complete",
+  "options": {
+    "binary": "/Users/alex/Projects/tpane/.tools/perf/tpane-tokio-native",
+    "panes": 8,
+    "busy": 4,
+    "trials": 3,
+    "seconds": 5.0,
+    "keys": 80,
+    "timeout": 30,
+    "output": "docs/performance/tokio-native/native-busy8.json"
+  },
+  "environment": {
+    "utc_started": "2026-09-10T23:52:48.670056+00:00",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "macos": "26.6.2",
+    "machine": "arm64",
+    "logical_cpus": 18,
+    "python": "3.9.6 (default, May 22 2026, 11:13:45) \n[Clang 21.0.0 (clang-2100.1.1.101)]",
+    "python_executable": "/Library/Developer/CommandLineTools/usr/bin/python3",
+    "hardware_model": "Mac17,9",
+    "cpu_brand": "Apple M5 Pro",
+    "binary_sha256": "6ec97868bc9ea8a823b1dcd76c4465f0bb4e2871fc53a84c3081f9d6e64e3eb1",
+    "binary_size": 2669312,
+    "fixture_sha256": "8990bd0208b86a9ca43c45971f595408f69aabe06e5fe5401f9a1f4059a34cce",
+    "harness_sha256": "7490d637509d6c886274d58ced3c966f3bbda91beeaf69d2a936e9bb8c88d508",
+    "shared_harness_sha256": "5d5dbdf70f09875076c23515fe85586ff0964764e80b30c6130d8f379501a3f8",
+    "cpu_counter_validation": {
+      "mach_timebase_numer": 125,
+      "mach_timebase_denom": 3,
+      "driver_libproc_cpu_ns": 42573708,
+      "driver_process_time_ns": 42580000,
+      "tolerance": "max(2ms, 5%); no busy-loop calibration"
+    },
+    "outer_pty": [
+      100,
+      30
+    ],
+    "selected_viewport": [
+      100,
+      28
+    ],
+    "environment_policy": "allowlist; isolated temporary HOME/cwd/XDG/TMPDIR; no real configs or clipboard",
+    "term": "xterm-256color",
+    "colorterm": "truecolor",
+    "locale": "C",
+    "binary_sha256_after": "6ec97868bc9ea8a823b1dcd76c4465f0bb4e2871fc53a84c3081f9d6e64e3eb1"
+  },
+  "method": {
+    "latency": "x write start -> ACK plus following ESC[?2026l; not physical display",
+    "schedule": "keys evenly spaced at interval midpoints; serial ACK waits; fail on window overrun",
+    "cpu": "libproc tpane PID total user+system Mach ticks, all threads; 100%=one core; excludes driver/backends",
+    "memory_threads": "raw CPU snapshots include RSS/virtual bytes/thread count at boundaries, not peaks",
+    "throughput": "sum successful producer payload write bytes / parent start-to-stop-signal seconds; INCLUDES PTY/application buffers, not processed/rendered throughput",
+    "producer_windows": "raw per-child signal handling timestamps/windows; signal delivery skew included; backend process CPU optional corroboration",
+    "clock": "perf_counter_ns origins are process-local on older macOS Python; compare durations, NEVER parent/child absolute timestamps",
+    "drain": "sequential root-tab selection after stop; DONE completed frame proves prior accepted bytes processed; stop-to-DONE includes selection and earlier panes' checks",
+    "hidden_check": "scan host wire for BUSY/DONE markers while responder selected; not a full VT screen emulator",
+    "payload": "64-byte ASCII lines including CRLF; <=16KiB pending per producer; unsent bytes discarded at stop",
+    "limitations": "Python production/driver scheduling/PTY transport affect results; no control over external load, thermals, power, or build flags",
+    "lock": "/tmp/tpane-benchmark-501.lock"
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "status": "complete",
+      "children": [
+        {
+          "pid": 55217,
+          "ready_viewport": [
+            100,
+            29
+          ]
+        },
+        {
+          "pid": 55220,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55221,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55222,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55223,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55224,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55225,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55227,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        }
+      ],
+      "tpane_pid": 55216,
+      "executed_fixture_sha256": "0922cc47b4495c9859a0689107de1f75e60dadd6c158bf2c0fc1015ac986b975",
+      "producers": [
+        55217,
+        55220,
+        55221,
+        55222
+      ],
+      "responder": 55227,
+      "start_signal_window_ns": [
+        1173514458,
+        1173594583
+      ],
+      "latency_samples": [
+        {
+          "key": 1,
+          "scheduled_ns": 1204764458,
+          "write_ns": 1206998416,
+          "frame_ns": 1207223750,
+          "latency_ms": 0.225334
+        },
+        {
+          "key": 2,
+          "scheduled_ns": 1267264458,
+          "write_ns": 1275329166,
+          "frame_ns": 1275555541,
+          "latency_ms": 0.226375
+        },
+        {
+          "key": 3,
+          "scheduled_ns": 1329764458,
+          "write_ns": 1337545791,
+          "frame_ns": 1337705083,
+          "latency_ms": 0.159292
+        },
+        {
+          "key": 4,
+          "scheduled_ns": 1392264458,
+          "write_ns": 1392913416,
+          "frame_ns": 1393063625,
+          "latency_ms": 0.150209
+        },
+        {
+          "key": 5,
+          "scheduled_ns": 1454764458,
+          "write_ns": 1462212375,
+          "frame_ns": 1462353541,
+          "latency_ms": 0.141166
+        },
+        {
+          "key": 6,
+          "scheduled_ns": 1517264458,
+          "write_ns": 1521489458,
+          "frame_ns": 1521691541,
+          "latency_ms": 0.202083
+        },
+        {
+          "key": 7,
+          "scheduled_ns": 1579764458,
+          "write_ns": 1588056666,
+          "frame_ns": 1588255416,
+          "latency_ms": 0.19875
+        },
+        {
+          "key": 8,
+          "scheduled_ns": 1642264458,
+          "write_ns": 1647947458,
+          "frame_ns": 1648130750,
+          "latency_ms": 0.183292
+        },
+        {
+          "key": 9,
+          "scheduled_ns": 1704764458,
+          "write_ns": 1708858541,
+          "frame_ns": 1709118166,
+          "latency_ms": 0.259625
+        },
+        {
+          "key": 10,
+          "scheduled_ns": 1767264458,
+          "write_ns": 1770872083,
+          "frame_ns": 1771068833,
+          "latency_ms": 0.19675
+        },
+        {
+          "key": 11,
+          "scheduled_ns": 1829764458,
+          "write_ns": 1835702416,
+          "frame_ns": 1835845833,
+          "latency_ms": 0.143417
+        },
+        {
+          "key": 12,
+          "scheduled_ns": 1892264458,
+          "write_ns": 1893005750,
+          "frame_ns": 1893166666,
+          "latency_ms": 0.160916
+        },
+        {
+          "key": 13,
+          "scheduled_ns": 1954764458,
+          "write_ns": 1958771541,
+          "frame_ns": 1959054833,
+          "latency_ms": 0.283292
+        },
+        {
+          "key": 14,
+          "scheduled_ns": 2017264458,
+          "write_ns": 2032995375,
+          "frame_ns": 2039780125,
+          "latency_ms": 6.78475
+        },
+        {
+          "key": 15,
+          "scheduled_ns": 2079764458,
+          "write_ns": 2079996958,
+          "frame_ns": 2080140500,
+          "latency_ms": 0.143542
+        },
+        {
+          "key": 16,
+          "scheduled_ns": 2142264458,
+          "write_ns": 2143255083,
+          "frame_ns": 2143441916,
+          "latency_ms": 0.186833
+        },
+        {
+          "key": 17,
+          "scheduled_ns": 2204764458,
+          "write_ns": 2208951541,
+          "frame_ns": 2209180458,
+          "latency_ms": 0.228917
+        },
+        {
+          "key": 18,
+          "scheduled_ns": 2267264458,
+          "write_ns": 2277380875,
+          "frame_ns": 2277581500,
+          "latency_ms": 0.200625
+        },
+        {
+          "key": 19,
+          "scheduled_ns": 2329764458,
+          "write_ns": 2337804708,
+          "frame_ns": 2337986416,
+          "latency_ms": 0.181708
+        },
+        {
+          "key": 20,
+          "scheduled_ns": 2392264458,
+          "write_ns": 2399844750,
+          "frame_ns": 2399988750,
+          "latency_ms": 0.144
+        },
+        {
+          "key": 21,
+          "scheduled_ns": 2454764458,
+          "write_ns": 2455763583,
+          "frame_ns": 2456010541,
+          "latency_ms": 0.246958
+        },
+        {
+          "key": 22,
+          "scheduled_ns": 2517264458,
+          "write_ns": 2526524541,
+          "frame_ns": 2526670041,
+          "latency_ms": 0.1455
+        },
+        {
+          "key": 23,
+          "scheduled_ns": 2579764458,
+          "write_ns": 2586706375,
+          "frame_ns": 2586871958,
+          "latency_ms": 0.165583
+        },
+        {
+          "key": 24,
+          "scheduled_ns": 2642264458,
+          "write_ns": 2651743333,
+          "frame_ns": 2651870583,
+          "latency_ms": 0.12725
+        },
+        {
+          "key": 25,
+          "scheduled_ns": 2704764458,
+          "write_ns": 2711025291,
+          "frame_ns": 2711191583,
+          "latency_ms": 0.166292
+        },
+        {
+          "key": 26,
+          "scheduled_ns": 2767264458,
+          "write_ns": 2768400916,
+          "frame_ns": 2768594041,
+          "latency_ms": 0.193125
+        },
+        {
+          "key": 27,
+          "scheduled_ns": 2829764458,
+          "write_ns": 2832236833,
+          "frame_ns": 2832472583,
+          "latency_ms": 0.23575
+        },
+        {
+          "key": 28,
+          "scheduled_ns": 2892264458,
+          "write_ns": 2896050833,
+          "frame_ns": 2896322125,
+          "latency_ms": 0.271292
+        },
+        {
+          "key": 29,
+          "scheduled_ns": 2954764458,
+          "write_ns": 2962516125,
+          "frame_ns": 2962754583,
+          "latency_ms": 0.238458
+        },
+        {
+          "key": 30,
+          "scheduled_ns": 3017264458,
+          "write_ns": 3019238208,
+          "frame_ns": 3019544041,
+          "latency_ms": 0.305833
+        },
+        {
+          "key": 31,
+          "scheduled_ns": 3079764458,
+          "write_ns": 3087927000,
+          "frame_ns": 3088219000,
+          "latency_ms": 0.292
+        },
+        {
+          "key": 32,
+          "scheduled_ns": 3142264458,
+          "write_ns": 3143155333,
+          "frame_ns": 3143433750,
+          "latency_ms": 0.278417
+        },
+        {
+          "key": 33,
+          "scheduled_ns": 3204764458,
+          "write_ns": 3208059291,
+          "frame_ns": 3208494875,
+          "latency_ms": 0.435584
+        },
+        {
+          "key": 34,
+          "scheduled_ns": 3267264458,
+          "write_ns": 3273199000,
+          "frame_ns": 3273390625,
+          "latency_ms": 0.191625
+        },
+        {
+          "key": 35,
+          "scheduled_ns": 3329764458,
+          "write_ns": 3338374875,
+          "frame_ns": 3338584916,
+          "latency_ms": 0.210041
+        },
+        {
+          "key": 36,
+          "scheduled_ns": 3392264458,
+          "write_ns": 3400825041,
+          "frame_ns": 3401022833,
+          "latency_ms": 0.197792
+        },
+        {
+          "key": 37,
+          "scheduled_ns": 3454764458,
+          "write_ns": 3463553958,
+          "frame_ns": 3463750083,
+          "latency_ms": 0.196125
+        },
+        {
+          "key": 38,
+          "scheduled_ns": 3517264458,
+          "write_ns": 3519453833,
+          "frame_ns": 3519614041,
+          "latency_ms": 0.160208
+        },
+        {
+          "key": 39,
+          "scheduled_ns": 3579764458,
+          "write_ns": 3581616375,
+          "frame_ns": 3581777458,
+          "latency_ms": 0.161083
+        },
+        {
+          "key": 40,
+          "scheduled_ns": 3642264458,
+          "write_ns": 3650145291,
+          "frame_ns": 3650274125,
+          "latency_ms": 0.128834
+        },
+        {
+          "key": 41,
+          "scheduled_ns": 3704764458,
+          "write_ns": 3710039250,
+          "frame_ns": 3710214375,
+          "latency_ms": 0.175125
+        },
+        {
+          "key": 42,
+          "scheduled_ns": 3767264458,
+          "write_ns": 3767780375,
+          "frame_ns": 3767955458,
+          "latency_ms": 0.175083
+        },
+        {
+          "key": 43,
+          "scheduled_ns": 3829764458,
+          "write_ns": 3836095916,
+          "frame_ns": 3836261208,
+          "latency_ms": 0.165292
+        },
+        {
+          "key": 44,
+          "scheduled_ns": 3892264458,
+          "write_ns": 3893999708,
+          "frame_ns": 3894155416,
+          "latency_ms": 0.155708
+        },
+        {
+          "key": 45,
+          "scheduled_ns": 3954764458,
+          "write_ns": 3958324541,
+          "frame_ns": 3958488833,
+          "latency_ms": 0.164292
+        },
+        {
+          "key": 46,
+          "scheduled_ns": 4017264458,
+          "write_ns": 4024455500,
+          "frame_ns": 4024613875,
+          "latency_ms": 0.158375
+        },
+        {
+          "key": 47,
+          "scheduled_ns": 4079764458,
+          "write_ns": 4087621791,
+          "frame_ns": 4087732416,
+          "latency_ms": 0.110625
+        },
+        {
+          "key": 48,
+          "scheduled_ns": 4142264458,
+          "write_ns": 4151404791,
+          "frame_ns": 4151526625,
+          "latency_ms": 0.121834
+        },
+        {
+          "key": 49,
+          "scheduled_ns": 4204764458,
+          "write_ns": 4204872041,
+          "frame_ns": 4205041916,
+          "latency_ms": 0.169875
+        },
+        {
+          "key": 50,
+          "scheduled_ns": 4267264458,
+          "write_ns": 4267545083,
+          "frame_ns": 4267783166,
+          "latency_ms": 0.238083
+        },
+        {
+          "key": 51,
+          "scheduled_ns": 4329764458,
+          "write_ns": 4338312750,
+          "frame_ns": 4338668916,
+          "latency_ms": 0.356166
+        },
+        {
+          "key": 52,
+          "scheduled_ns": 4392264458,
+          "write_ns": 4396797875,
+          "frame_ns": 4396985208,
+          "latency_ms": 0.187333
+        },
+        {
+          "key": 53,
+          "scheduled_ns": 4454764458,
+          "write_ns": 4463052000,
+          "frame_ns": 4463192250,
+          "latency_ms": 0.14025
+        },
+        {
+          "key": 54,
+          "scheduled_ns": 4517264458,
+          "write_ns": 4518660708,
+          "frame_ns": 4518828833,
+          "latency_ms": 0.168125
+        },
+        {
+          "key": 55,
+          "scheduled_ns": 4579764458,
+          "write_ns": 4580858500,
+          "frame_ns": 4581020875,
+          "latency_ms": 0.162375
+        },
+        {
+          "key": 56,
+          "scheduled_ns": 4642264458,
+          "write_ns": 4643772791,
+          "frame_ns": 4643966375,
+          "latency_ms": 0.193584
+        },
+        {
+          "key": 57,
+          "scheduled_ns": 4704764458,
+          "write_ns": 4709879041,
+          "frame_ns": 4710045916,
+          "latency_ms": 0.166875
+        },
+        {
+          "key": 58,
+          "scheduled_ns": 4767264458,
+          "write_ns": 4768728916,
+          "frame_ns": 4768840958,
+          "latency_ms": 0.112042
+        },
+        {
+          "key": 59,
+          "scheduled_ns": 4829764458,
+          "write_ns": 4838117958,
+          "frame_ns": 4838320041,
+          "latency_ms": 0.202083
+        },
+        {
+          "key": 60,
+          "scheduled_ns": 4892264458,
+          "write_ns": 4895141583,
+          "frame_ns": 4895266583,
+          "latency_ms": 0.125
+        },
+        {
+          "key": 61,
+          "scheduled_ns": 4954764458,
+          "write_ns": 4961984250,
+          "frame_ns": 4962112666,
+          "latency_ms": 0.128416
+        },
+        {
+          "key": 62,
+          "scheduled_ns": 5017264458,
+          "write_ns": 5024022916,
+          "frame_ns": 5024199791,
+          "latency_ms": 0.176875
+        },
+        {
+          "key": 63,
+          "scheduled_ns": 5079764458,
+          "write_ns": 5087319708,
+          "frame_ns": 5087454375,
+          "latency_ms": 0.134667
+        },
+        {
+          "key": 64,
+          "scheduled_ns": 5142264458,
+          "write_ns": 5147941708,
+          "frame_ns": 5148121208,
+          "latency_ms": 0.1795
+        },
+        {
+          "key": 65,
+          "scheduled_ns": 5204764458,
+          "write_ns": 5204950333,
+          "frame_ns": 5205176708,
+          "latency_ms": 0.226375
+        },
+        {
+          "key": 66,
+          "scheduled_ns": 5267264458,
+          "write_ns": 5274498875,
+          "frame_ns": 5274715958,
+          "latency_ms": 0.217083
+        },
+        {
+          "key": 67,
+          "scheduled_ns": 5329764458,
+          "write_ns": 5334214458,
+          "frame_ns": 5334380416,
+          "latency_ms": 0.165958
+        },
+        {
+          "key": 68,
+          "scheduled_ns": 5392264458,
+          "write_ns": 5399543666,
+          "frame_ns": 5399740083,
+          "latency_ms": 0.196417
+        },
+        {
+          "key": 69,
+          "scheduled_ns": 5454764458,
+          "write_ns": 5461223125,
+          "frame_ns": 5461339916,
+          "latency_ms": 0.116791
+        },
+        {
+          "key": 70,
+          "scheduled_ns": 5517264458,
+          "write_ns": 5522086375,
+          "frame_ns": 5522254708,
+          "latency_ms": 0.168333
+        },
+        {
+          "key": 71,
+          "scheduled_ns": 5579764458,
+          "write_ns": 5583283208,
+          "frame_ns": 5583401375,
+          "latency_ms": 0.118167
+        },
+        {
+          "key": 72,
+          "scheduled_ns": 5642264458,
+          "write_ns": 5643862250,
+          "frame_ns": 5644059666,
+          "latency_ms": 0.197416
+        },
+        {
+          "key": 73,
+          "scheduled_ns": 5704764458,
+          "write_ns": 5713147958,
+          "frame_ns": 5713333958,
+          "latency_ms": 0.186
+        },
+        {
+          "key": 74,
+          "scheduled_ns": 5767264458,
+          "write_ns": 5768958000,
+          "frame_ns": 5769123000,
+          "latency_ms": 0.165
+        },
+        {
+          "key": 75,
+          "scheduled_ns": 5829764458,
+          "write_ns": 5835247416,
+          "frame_ns": 5835390458,
+          "latency_ms": 0.143042
+        },
+        {
+          "key": 76,
+          "scheduled_ns": 5892264458,
+          "write_ns": 5896456041,
+          "frame_ns": 5896602666,
+          "latency_ms": 0.146625
+        },
+        {
+          "key": 77,
+          "scheduled_ns": 5954764458,
+          "write_ns": 5960116208,
+          "frame_ns": 5960316375,
+          "latency_ms": 0.200167
+        },
+        {
+          "key": 78,
+          "scheduled_ns": 6017264458,
+          "write_ns": 6024434541,
+          "frame_ns": 6024642875,
+          "latency_ms": 0.208334
+        },
+        {
+          "key": 79,
+          "scheduled_ns": 6079764458,
+          "write_ns": 6089725125,
+          "frame_ns": 6089905708,
+          "latency_ms": 0.180583
+        },
+        {
+          "key": 80,
+          "scheduled_ns": 6142264458,
+          "write_ns": 6144306416,
+          "frame_ns": 6144513833,
+          "latency_ms": 0.207417
+        }
+      ],
+      "steady": {
+        "start_ns": 1173514458,
+        "stop_signal_window_ns": [
+          6183546333,
+          6183625083
+        ],
+        "wall_seconds": 5.010031875,
+        "cpu_before": {
+          "sample_ns": 1173503541,
+          "user_ticks": 93945,
+          "system_ticks": 360957,
+          "user_ns": 3914375,
+          "system_ns": 15039875,
+          "threads": 2,
+          "resident_bytes": 6733824,
+          "virtual_bytes": 445769318400
+        },
+        "cpu_after": {
+          "sample_ns": 6183644333,
+          "user_ticks": 35192446,
+          "system_ticks": 59445706,
+          "user_ns": 1466351916,
+          "system_ns": 2476904416,
+          "threads": 2,
+          "resident_bytes": 9814016,
+          "virtual_bytes": 445769318400
+        },
+        "cpu_user_seconds": 1.462437541,
+        "cpu_system_seconds": 2.461864541,
+        "cpu_total_seconds": 3.924302082,
+        "cpu_sample_wall_seconds": 5.010140792,
+        "cpu_percent_one_core": 78.32718170846965,
+        "host_bytes_read": 12960,
+        "p50_ms": 0.1800415,
+        "p95_ms": 0.29269164999999997,
+        "producer_accepted_bytes": 692915200,
+        "producer_accepted_mib_per_second": 131.89844818851577,
+        "backend_cpu_seconds": 8.425011
+      },
+      "post_stop_ack_ms": 0.210666,
+      "hidden_output_check": "passed: no BUSY/DONE wire markers while hidden",
+      "drain_samples": [
+        {
+          "pid": 55217,
+          "selected_ns": 6183888750,
+          "done_frame_ns": 6200163958,
+          "selection_to_done_ms": 16.275208,
+          "stop_to_done_ms": 16.617625
+        },
+        {
+          "pid": 55220,
+          "selected_ns": 6200389125,
+          "done_frame_ns": 6219566958,
+          "selection_to_done_ms": 19.177833,
+          "stop_to_done_ms": 36.020625
+        },
+        {
+          "pid": 55221,
+          "selected_ns": 6219694250,
+          "done_frame_ns": 6236881250,
+          "selection_to_done_ms": 17.187,
+          "stop_to_done_ms": 53.334917
+        },
+        {
+          "pid": 55222,
+          "selected_ns": 6237003166,
+          "done_frame_ns": 6255018250,
+          "selection_to_done_ms": 18.015084,
+          "stop_to_done_ms": 71.471917
+        }
+      ],
+      "producer_stats": [
+        {
+          "pid": 55217,
+          "generation": 1,
+          "accepted_bytes": 172843008,
+          "unwritten_discarded_bytes": 8192,
+          "start_ns": 776762291,
+          "stop_ns": 5786635125,
+          "window_seconds": 5.009872834,
+          "backend_cpu_seconds": 2.105779
+        },
+        {
+          "pid": 55220,
+          "generation": 1,
+          "accepted_bytes": 173476864,
+          "unwritten_discarded_bytes": 13312,
+          "start_ns": 700902333,
+          "stop_ns": 5710774625,
+          "window_seconds": 5.009872292,
+          "backend_cpu_seconds": 2.100894
+        },
+        {
+          "pid": 55221,
+          "generation": 1,
+          "accepted_bytes": 173118464,
+          "unwritten_discarded_bytes": 11264,
+          "start_ns": 629903833,
+          "stop_ns": 5639760583,
+          "window_seconds": 5.00985675,
+          "backend_cpu_seconds": 2.110171
+        },
+        {
+          "pid": 55222,
+          "generation": 1,
+          "accepted_bytes": 173476864,
+          "unwritten_discarded_bytes": 13312,
+          "start_ns": 560019333,
+          "stop_ns": 5569899958,
+          "window_seconds": 5.009880625,
+          "backend_cpu_seconds": 2.108167
+        }
+      ],
+      "drain_complete_ms": 71.471917
+    },
+    {
+      "trial": 2,
+      "status": "complete",
+      "children": [
+        {
+          "pid": 55343,
+          "ready_viewport": [
+            100,
+            29
+          ]
+        },
+        {
+          "pid": 55344,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55345,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55346,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55347,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55348,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55350,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55351,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        }
+      ],
+      "tpane_pid": 55342,
+      "executed_fixture_sha256": "0922cc47b4495c9859a0689107de1f75e60dadd6c158bf2c0fc1015ac986b975",
+      "producers": [
+        55343,
+        55344,
+        55345,
+        55346
+      ],
+      "responder": 55351,
+      "start_signal_window_ns": [
+        7297067458,
+        7297134916
+      ],
+      "latency_samples": [
+        {
+          "key": 1,
+          "scheduled_ns": 7328317458,
+          "write_ns": 7336682333,
+          "frame_ns": 7336913833,
+          "latency_ms": 0.2315
+        },
+        {
+          "key": 2,
+          "scheduled_ns": 7390817458,
+          "write_ns": 7393622708,
+          "frame_ns": 7393783166,
+          "latency_ms": 0.160458
+        },
+        {
+          "key": 3,
+          "scheduled_ns": 7453317458,
+          "write_ns": 7461268625,
+          "frame_ns": 7461462250,
+          "latency_ms": 0.193625
+        },
+        {
+          "key": 4,
+          "scheduled_ns": 7515817458,
+          "write_ns": 7516561166,
+          "frame_ns": 7516689250,
+          "latency_ms": 0.128084
+        },
+        {
+          "key": 5,
+          "scheduled_ns": 7578317458,
+          "write_ns": 7585724791,
+          "frame_ns": 7585938458,
+          "latency_ms": 0.213667
+        },
+        {
+          "key": 6,
+          "scheduled_ns": 7640817458,
+          "write_ns": 7649856875,
+          "frame_ns": 7649970166,
+          "latency_ms": 0.113291
+        },
+        {
+          "key": 7,
+          "scheduled_ns": 7703317458,
+          "write_ns": 7712181083,
+          "frame_ns": 7712334833,
+          "latency_ms": 0.15375
+        },
+        {
+          "key": 8,
+          "scheduled_ns": 7765817458,
+          "write_ns": 7769386291,
+          "frame_ns": 7769540291,
+          "latency_ms": 0.154
+        },
+        {
+          "key": 9,
+          "scheduled_ns": 7828317458,
+          "write_ns": 7828726958,
+          "frame_ns": 7828956041,
+          "latency_ms": 0.229083
+        },
+        {
+          "key": 10,
+          "scheduled_ns": 7890817458,
+          "write_ns": 7895798750,
+          "frame_ns": 7895958125,
+          "latency_ms": 0.159375
+        },
+        {
+          "key": 11,
+          "scheduled_ns": 7953317458,
+          "write_ns": 7958106708,
+          "frame_ns": 7958298708,
+          "latency_ms": 0.192
+        },
+        {
+          "key": 12,
+          "scheduled_ns": 8015817458,
+          "write_ns": 8020284500,
+          "frame_ns": 8020551000,
+          "latency_ms": 0.2665
+        },
+        {
+          "key": 13,
+          "scheduled_ns": 8078317458,
+          "write_ns": 8083954500,
+          "frame_ns": 8084096333,
+          "latency_ms": 0.141833
+        },
+        {
+          "key": 14,
+          "scheduled_ns": 8140817458,
+          "write_ns": 8141118750,
+          "frame_ns": 8141267583,
+          "latency_ms": 0.148833
+        },
+        {
+          "key": 15,
+          "scheduled_ns": 8203317458,
+          "write_ns": 8211145291,
+          "frame_ns": 8211335333,
+          "latency_ms": 0.190042
+        },
+        {
+          "key": 16,
+          "scheduled_ns": 8265817458,
+          "write_ns": 8270287791,
+          "frame_ns": 8270459750,
+          "latency_ms": 0.171959
+        },
+        {
+          "key": 17,
+          "scheduled_ns": 8328317458,
+          "write_ns": 8329515708,
+          "frame_ns": 8329690166,
+          "latency_ms": 0.174458
+        },
+        {
+          "key": 18,
+          "scheduled_ns": 8390817458,
+          "write_ns": 8398693208,
+          "frame_ns": 8398925041,
+          "latency_ms": 0.231833
+        },
+        {
+          "key": 19,
+          "scheduled_ns": 8453317458,
+          "write_ns": 8459674125,
+          "frame_ns": 8459864625,
+          "latency_ms": 0.1905
+        },
+        {
+          "key": 20,
+          "scheduled_ns": 8515817458,
+          "write_ns": 8517800916,
+          "frame_ns": 8517965208,
+          "latency_ms": 0.164292
+        },
+        {
+          "key": 21,
+          "scheduled_ns": 8578317458,
+          "write_ns": 8579762291,
+          "frame_ns": 8579936000,
+          "latency_ms": 0.173709
+        },
+        {
+          "key": 22,
+          "scheduled_ns": 8640817458,
+          "write_ns": 8648701333,
+          "frame_ns": 8648841708,
+          "latency_ms": 0.140375
+        },
+        {
+          "key": 23,
+          "scheduled_ns": 8703317458,
+          "write_ns": 8712176916,
+          "frame_ns": 8712375083,
+          "latency_ms": 0.198167
+        },
+        {
+          "key": 24,
+          "scheduled_ns": 8765817458,
+          "write_ns": 8771891000,
+          "frame_ns": 8772113958,
+          "latency_ms": 0.222958
+        },
+        {
+          "key": 25,
+          "scheduled_ns": 8828317458,
+          "write_ns": 8834738583,
+          "frame_ns": 8834877375,
+          "latency_ms": 0.138792
+        },
+        {
+          "key": 26,
+          "scheduled_ns": 8890817458,
+          "write_ns": 8893290833,
+          "frame_ns": 8899535541,
+          "latency_ms": 6.244708
+        },
+        {
+          "key": 27,
+          "scheduled_ns": 8953317458,
+          "write_ns": 8960331125,
+          "frame_ns": 8960463625,
+          "latency_ms": 0.1325
+        },
+        {
+          "key": 28,
+          "scheduled_ns": 9015817458,
+          "write_ns": 9020827958,
+          "frame_ns": 9021006625,
+          "latency_ms": 0.178667
+        },
+        {
+          "key": 29,
+          "scheduled_ns": 9078317458,
+          "write_ns": 9084732000,
+          "frame_ns": 9084942166,
+          "latency_ms": 0.210166
+        },
+        {
+          "key": 30,
+          "scheduled_ns": 9140817458,
+          "write_ns": 9149614208,
+          "frame_ns": 9149798833,
+          "latency_ms": 0.184625
+        },
+        {
+          "key": 31,
+          "scheduled_ns": 9203317458,
+          "write_ns": 9209128125,
+          "frame_ns": 9209270666,
+          "latency_ms": 0.142541
+        },
+        {
+          "key": 32,
+          "scheduled_ns": 9265817458,
+          "write_ns": 9272555833,
+          "frame_ns": 9272707041,
+          "latency_ms": 0.151208
+        },
+        {
+          "key": 33,
+          "scheduled_ns": 9328317458,
+          "write_ns": 9328608125,
+          "frame_ns": 9328787000,
+          "latency_ms": 0.178875
+        },
+        {
+          "key": 34,
+          "scheduled_ns": 9390817458,
+          "write_ns": 9400156250,
+          "frame_ns": 9400315958,
+          "latency_ms": 0.159708
+        },
+        {
+          "key": 35,
+          "scheduled_ns": 9453317458,
+          "write_ns": 9454228750,
+          "frame_ns": 9454422625,
+          "latency_ms": 0.193875
+        },
+        {
+          "key": 36,
+          "scheduled_ns": 9515817458,
+          "write_ns": 9521559583,
+          "frame_ns": 9521691458,
+          "latency_ms": 0.131875
+        },
+        {
+          "key": 37,
+          "scheduled_ns": 9578317458,
+          "write_ns": 9580731708,
+          "frame_ns": 9580867833,
+          "latency_ms": 0.136125
+        },
+        {
+          "key": 38,
+          "scheduled_ns": 9640817458,
+          "write_ns": 9642200416,
+          "frame_ns": 9642398291,
+          "latency_ms": 0.197875
+        },
+        {
+          "key": 39,
+          "scheduled_ns": 9703317458,
+          "write_ns": 9713146875,
+          "frame_ns": 9713285125,
+          "latency_ms": 0.13825
+        },
+        {
+          "key": 40,
+          "scheduled_ns": 9765817458,
+          "write_ns": 9769360416,
+          "frame_ns": 9769593583,
+          "latency_ms": 0.233167
+        },
+        {
+          "key": 41,
+          "scheduled_ns": 9828317458,
+          "write_ns": 9828453166,
+          "frame_ns": 9828631875,
+          "latency_ms": 0.178709
+        },
+        {
+          "key": 42,
+          "scheduled_ns": 9890817458,
+          "write_ns": 9897084208,
+          "frame_ns": 9897313291,
+          "latency_ms": 0.229083
+        },
+        {
+          "key": 43,
+          "scheduled_ns": 9953317458,
+          "write_ns": 9958089791,
+          "frame_ns": 9958274250,
+          "latency_ms": 0.184459
+        },
+        {
+          "key": 44,
+          "scheduled_ns": 10015817458,
+          "write_ns": 10023003375,
+          "frame_ns": 10023180000,
+          "latency_ms": 0.176625
+        },
+        {
+          "key": 45,
+          "scheduled_ns": 10078317458,
+          "write_ns": 10087624291,
+          "frame_ns": 10087752125,
+          "latency_ms": 0.127834
+        },
+        {
+          "key": 46,
+          "scheduled_ns": 10140817458,
+          "write_ns": 10149625333,
+          "frame_ns": 10149775166,
+          "latency_ms": 0.149833
+        },
+        {
+          "key": 47,
+          "scheduled_ns": 10203317458,
+          "write_ns": 10210269208,
+          "frame_ns": 10210391875,
+          "latency_ms": 0.122667
+        },
+        {
+          "key": 48,
+          "scheduled_ns": 10265817458,
+          "write_ns": 10275554666,
+          "frame_ns": 10275693583,
+          "latency_ms": 0.138917
+        },
+        {
+          "key": 49,
+          "scheduled_ns": 10328317458,
+          "write_ns": 10334876375,
+          "frame_ns": 10335008000,
+          "latency_ms": 0.131625
+        },
+        {
+          "key": 50,
+          "scheduled_ns": 10390817458,
+          "write_ns": 10394023708,
+          "frame_ns": 10394127000,
+          "latency_ms": 0.103292
+        },
+        {
+          "key": 51,
+          "scheduled_ns": 10453317458,
+          "write_ns": 10458746833,
+          "frame_ns": 10458991291,
+          "latency_ms": 0.244458
+        },
+        {
+          "key": 52,
+          "scheduled_ns": 10515817458,
+          "write_ns": 10518334416,
+          "frame_ns": 10518494291,
+          "latency_ms": 0.159875
+        },
+        {
+          "key": 53,
+          "scheduled_ns": 10578317458,
+          "write_ns": 10585727916,
+          "frame_ns": 10585858625,
+          "latency_ms": 0.130709
+        },
+        {
+          "key": 54,
+          "scheduled_ns": 10640817458,
+          "write_ns": 10649435875,
+          "frame_ns": 10649589750,
+          "latency_ms": 0.153875
+        },
+        {
+          "key": 55,
+          "scheduled_ns": 10703317458,
+          "write_ns": 10712819750,
+          "frame_ns": 10713013583,
+          "latency_ms": 0.193833
+        },
+        {
+          "key": 56,
+          "scheduled_ns": 10765817458,
+          "write_ns": 10770391541,
+          "frame_ns": 10770525875,
+          "latency_ms": 0.134334
+        },
+        {
+          "key": 57,
+          "scheduled_ns": 10828317458,
+          "write_ns": 10837804708,
+          "frame_ns": 10837939958,
+          "latency_ms": 0.13525
+        },
+        {
+          "key": 58,
+          "scheduled_ns": 10890817458,
+          "write_ns": 10890947625,
+          "frame_ns": 10891088083,
+          "latency_ms": 0.140458
+        },
+        {
+          "key": 59,
+          "scheduled_ns": 10953317458,
+          "write_ns": 10961617375,
+          "frame_ns": 10961740416,
+          "latency_ms": 0.123041
+        },
+        {
+          "key": 60,
+          "scheduled_ns": 11015817458,
+          "write_ns": 11022790083,
+          "frame_ns": 11022976125,
+          "latency_ms": 0.186042
+        },
+        {
+          "key": 61,
+          "scheduled_ns": 11078317458,
+          "write_ns": 11088012458,
+          "frame_ns": 11088185500,
+          "latency_ms": 0.173042
+        },
+        {
+          "key": 62,
+          "scheduled_ns": 11140817458,
+          "write_ns": 11147785791,
+          "frame_ns": 11147974708,
+          "latency_ms": 0.188917
+        },
+        {
+          "key": 63,
+          "scheduled_ns": 11203317458,
+          "write_ns": 11211217875,
+          "frame_ns": 11211366250,
+          "latency_ms": 0.148375
+        },
+        {
+          "key": 64,
+          "scheduled_ns": 11265817458,
+          "write_ns": 11270704166,
+          "frame_ns": 11270864625,
+          "latency_ms": 0.160459
+        },
+        {
+          "key": 65,
+          "scheduled_ns": 11328317458,
+          "write_ns": 11329886416,
+          "frame_ns": 11330012166,
+          "latency_ms": 0.12575
+        },
+        {
+          "key": 66,
+          "scheduled_ns": 11390817458,
+          "write_ns": 11394414500,
+          "frame_ns": 11394643333,
+          "latency_ms": 0.228833
+        },
+        {
+          "key": 67,
+          "scheduled_ns": 11453317458,
+          "write_ns": 11461372833,
+          "frame_ns": 11461573416,
+          "latency_ms": 0.200583
+        },
+        {
+          "key": 68,
+          "scheduled_ns": 11515817458,
+          "write_ns": 11521081583,
+          "frame_ns": 11521216833,
+          "latency_ms": 0.13525
+        },
+        {
+          "key": 69,
+          "scheduled_ns": 11578317458,
+          "write_ns": 11587458833,
+          "frame_ns": 11587657083,
+          "latency_ms": 0.19825
+        },
+        {
+          "key": 70,
+          "scheduled_ns": 11640817458,
+          "write_ns": 11644061125,
+          "frame_ns": 11644191208,
+          "latency_ms": 0.130083
+        },
+        {
+          "key": 71,
+          "scheduled_ns": 11703317458,
+          "write_ns": 11710015000,
+          "frame_ns": 11710142666,
+          "latency_ms": 0.127666
+        },
+        {
+          "key": 72,
+          "scheduled_ns": 11765817458,
+          "write_ns": 11771339708,
+          "frame_ns": 11771472000,
+          "latency_ms": 0.132292
+        },
+        {
+          "key": 73,
+          "scheduled_ns": 11828317458,
+          "write_ns": 11836150541,
+          "frame_ns": 11836315125,
+          "latency_ms": 0.164584
+        },
+        {
+          "key": 74,
+          "scheduled_ns": 11890817458,
+          "write_ns": 11896350375,
+          "frame_ns": 11896500291,
+          "latency_ms": 0.149916
+        },
+        {
+          "key": 75,
+          "scheduled_ns": 11953317458,
+          "write_ns": 11955505458,
+          "frame_ns": 11955653750,
+          "latency_ms": 0.148292
+        },
+        {
+          "key": 76,
+          "scheduled_ns": 12015817458,
+          "write_ns": 12023047166,
+          "frame_ns": 12023318750,
+          "latency_ms": 0.271584
+        },
+        {
+          "key": 77,
+          "scheduled_ns": 12078317458,
+          "write_ns": 12084830125,
+          "frame_ns": 12085052666,
+          "latency_ms": 0.222541
+        },
+        {
+          "key": 78,
+          "scheduled_ns": 12140817458,
+          "write_ns": 12147262000,
+          "frame_ns": 12147468250,
+          "latency_ms": 0.20625
+        },
+        {
+          "key": 79,
+          "scheduled_ns": 12203317458,
+          "write_ns": 12203703958,
+          "frame_ns": 12203924291,
+          "latency_ms": 0.220333
+        },
+        {
+          "key": 80,
+          "scheduled_ns": 12265817458,
+          "write_ns": 12266108833,
+          "frame_ns": 12266281333,
+          "latency_ms": 0.1725
+        }
+      ],
+      "steady": {
+        "start_ns": 7297067458,
+        "stop_signal_window_ns": [
+          12304690958,
+          12304758250
+        ],
+        "wall_seconds": 5.0076235,
+        "cpu_before": {
+          "sample_ns": 7297048916,
+          "user_ticks": 99083,
+          "system_ticks": 344607,
+          "user_ns": 4128458,
+          "system_ns": 14358625,
+          "threads": 2,
+          "resident_bytes": 6684672,
+          "virtual_bytes": 445769564160
+        },
+        "cpu_after": {
+          "sample_ns": 12304788750,
+          "user_ticks": 35737949,
+          "system_ticks": 61015308,
+          "user_ns": 1489081208,
+          "system_ns": 2542304500,
+          "threads": 2,
+          "resident_bytes": 9781248,
+          "virtual_bytes": 445769564160
+        },
+        "cpu_user_seconds": 1.48495275,
+        "cpu_system_seconds": 2.527945875,
+        "cpu_total_seconds": 4.012898625,
+        "cpu_sample_wall_seconds": 5.007739834,
+        "cpu_percent_one_core": 80.13392784014985,
+        "host_bytes_read": 12960,
+        "p50_ms": 0.164438,
+        "p95_ms": 0.23373154999999998,
+        "producer_accepted_bytes": 717892608,
+        "producer_accepted_mib_per_second": 136.7186934456035,
+        "backend_cpu_seconds": 8.564544999999999
+      },
+      "post_stop_ack_ms": 0.145667,
+      "hidden_output_check": "passed: no BUSY/DONE wire markers while hidden",
+      "drain_samples": [
+        {
+          "pid": 55343,
+          "selected_ns": 12304970000,
+          "done_frame_ns": 12323850416,
+          "selection_to_done_ms": 18.880416,
+          "stop_to_done_ms": 19.159458
+        },
+        {
+          "pid": 55344,
+          "selected_ns": 12324063500,
+          "done_frame_ns": 12342776166,
+          "selection_to_done_ms": 18.712666,
+          "stop_to_done_ms": 38.085208
+        },
+        {
+          "pid": 55345,
+          "selected_ns": 12342900375,
+          "done_frame_ns": 12362057291,
+          "selection_to_done_ms": 19.156916,
+          "stop_to_done_ms": 57.366333
+        },
+        {
+          "pid": 55346,
+          "selected_ns": 12362175125,
+          "done_frame_ns": 12380374375,
+          "selection_to_done_ms": 18.19925,
+          "stop_to_done_ms": 75.683417
+        }
+      ],
+      "producer_stats": [
+        {
+          "pid": 55343,
+          "generation": 1,
+          "accepted_bytes": 179388416,
+          "unwritten_discarded_bytes": 0,
+          "start_ns": 784564666,
+          "stop_ns": 5792167208,
+          "window_seconds": 5.007602542,
+          "backend_cpu_seconds": 2.139548
+        },
+        {
+          "pid": 55344,
+          "generation": 1,
+          "accepted_bytes": 179709952,
+          "unwritten_discarded_bytes": 6144,
+          "start_ns": 709154750,
+          "stop_ns": 5716760833,
+          "window_seconds": 5.007606083,
+          "backend_cpu_seconds": 2.150092
+        },
+        {
+          "pid": 55345,
+          "generation": 1,
+          "accepted_bytes": 179486720,
+          "unwritten_discarded_bytes": 0,
+          "start_ns": 631406666,
+          "stop_ns": 5638983166,
+          "window_seconds": 5.0075765,
+          "backend_cpu_seconds": 2.136332
+        },
+        {
+          "pid": 55346,
+          "generation": 1,
+          "accepted_bytes": 179307520,
+          "unwritten_discarded_bytes": 15360,
+          "start_ns": 556631208,
+          "stop_ns": 5564229958,
+          "window_seconds": 5.00759875,
+          "backend_cpu_seconds": 2.138573
+        }
+      ],
+      "drain_complete_ms": 75.683417
+    },
+    {
+      "trial": 3,
+      "status": "complete",
+      "children": [
+        {
+          "pid": 55393,
+          "ready_viewport": [
+            100,
+            29
+          ]
+        },
+        {
+          "pid": 55394,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55395,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55396,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55398,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55399,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55401,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        },
+        {
+          "pid": 55405,
+          "ready_viewport": [
+            100,
+            28
+          ]
+        }
+      ],
+      "tpane_pid": 55392,
+      "executed_fixture_sha256": "0922cc47b4495c9859a0689107de1f75e60dadd6c158bf2c0fc1015ac986b975",
+      "producers": [
+        55393,
+        55394,
+        55395,
+        55396
+      ],
+      "responder": 55405,
+      "start_signal_window_ns": [
+        13410096041,
+        13410167291
+      ],
+      "latency_samples": [
+        {
+          "key": 1,
+          "scheduled_ns": 13441346041,
+          "write_ns": 13445694875,
+          "frame_ns": 13445928958,
+          "latency_ms": 0.234083
+        },
+        {
+          "key": 2,
+          "scheduled_ns": 13503846041,
+          "write_ns": 13509576958,
+          "frame_ns": 13509750375,
+          "latency_ms": 0.173417
+        },
+        {
+          "key": 3,
+          "scheduled_ns": 13566346041,
+          "write_ns": 13568494666,
+          "frame_ns": 13568652916,
+          "latency_ms": 0.15825
+        },
+        {
+          "key": 4,
+          "scheduled_ns": 13628846041,
+          "write_ns": 13638083791,
+          "frame_ns": 13638217541,
+          "latency_ms": 0.13375
+        },
+        {
+          "key": 5,
+          "scheduled_ns": 13691346041,
+          "write_ns": 13695010375,
+          "frame_ns": 13695167208,
+          "latency_ms": 0.156833
+        },
+        {
+          "key": 6,
+          "scheduled_ns": 13753846041,
+          "write_ns": 13756068416,
+          "frame_ns": 13756231250,
+          "latency_ms": 0.162834
+        },
+        {
+          "key": 7,
+          "scheduled_ns": 13816346041,
+          "write_ns": 13825565041,
+          "frame_ns": 13825726375,
+          "latency_ms": 0.161334
+        },
+        {
+          "key": 8,
+          "scheduled_ns": 13878846041,
+          "write_ns": 13885578791,
+          "frame_ns": 13885738375,
+          "latency_ms": 0.159584
+        },
+        {
+          "key": 9,
+          "scheduled_ns": 13941346041,
+          "write_ns": 13942974708,
+          "frame_ns": 13943187125,
+          "latency_ms": 0.212417
+        },
+        {
+          "key": 10,
+          "scheduled_ns": 14003846041,
+          "write_ns": 14012057000,
+          "frame_ns": 14012299458,
+          "latency_ms": 0.242458
+        },
+        {
+          "key": 11,
+          "scheduled_ns": 14066346041,
+          "write_ns": 14071616166,
+          "frame_ns": 14071773416,
+          "latency_ms": 0.15725
+        },
+        {
+          "key": 12,
+          "scheduled_ns": 14128846041,
+          "write_ns": 14134152291,
+          "frame_ns": 14134387083,
+          "latency_ms": 0.234792
+        },
+        {
+          "key": 13,
+          "scheduled_ns": 14191346041,
+          "write_ns": 14196901791,
+          "frame_ns": 14197086791,
+          "latency_ms": 0.185
+        },
+        {
+          "key": 14,
+          "scheduled_ns": 14253846041,
+          "write_ns": 14258487625,
+          "frame_ns": 14258657208,
+          "latency_ms": 0.169583
+        },
+        {
+          "key": 15,
+          "scheduled_ns": 14316346041,
+          "write_ns": 14323650250,
+          "frame_ns": 14323818833,
+          "latency_ms": 0.168583
+        },
+        {
+          "key": 16,
+          "scheduled_ns": 14378846041,
+          "write_ns": 14386980583,
+          "frame_ns": 14387184375,
+          "latency_ms": 0.203792
+        },
+        {
+          "key": 17,
+          "scheduled_ns": 14441346041,
+          "write_ns": 14444383500,
+          "frame_ns": 14444553625,
+          "latency_ms": 0.170125
+        },
+        {
+          "key": 18,
+          "scheduled_ns": 14503846041,
+          "write_ns": 14506828500,
+          "frame_ns": 14506990000,
+          "latency_ms": 0.1615
+        },
+        {
+          "key": 19,
+          "scheduled_ns": 14566346041,
+          "write_ns": 14570235125,
+          "frame_ns": 14570454583,
+          "latency_ms": 0.219458
+        },
+        {
+          "key": 20,
+          "scheduled_ns": 14628846041,
+          "write_ns": 14636598500,
+          "frame_ns": 14636878416,
+          "latency_ms": 0.279916
+        },
+        {
+          "key": 21,
+          "scheduled_ns": 14691346041,
+          "write_ns": 14696164875,
+          "frame_ns": 14696346291,
+          "latency_ms": 0.181416
+        },
+        {
+          "key": 22,
+          "scheduled_ns": 14753846041,
+          "write_ns": 14761192458,
+          "frame_ns": 14761337875,
+          "latency_ms": 0.145417
+        },
+        {
+          "key": 23,
+          "scheduled_ns": 14816346041,
+          "write_ns": 14819014833,
+          "frame_ns": 14819176083,
+          "latency_ms": 0.16125
+        },
+        {
+          "key": 24,
+          "scheduled_ns": 14878846041,
+          "write_ns": 14882980708,
+          "frame_ns": 14883182291,
+          "latency_ms": 0.201583
+        },
+        {
+          "key": 25,
+          "scheduled_ns": 14941346041,
+          "write_ns": 14950527333,
+          "frame_ns": 14950792583,
+          "latency_ms": 0.26525
+        },
+        {
+          "key": 26,
+          "scheduled_ns": 15003846041,
+          "write_ns": 15013953416,
+          "frame_ns": 15014134166,
+          "latency_ms": 0.18075
+        },
+        {
+          "key": 27,
+          "scheduled_ns": 15066346041,
+          "write_ns": 15071874500,
+          "frame_ns": 15072021291,
+          "latency_ms": 0.146791
+        },
+        {
+          "key": 28,
+          "scheduled_ns": 15128846041,
+          "write_ns": 15134619958,
+          "frame_ns": 15134759375,
+          "latency_ms": 0.139417
+        },
+        {
+          "key": 29,
+          "scheduled_ns": 15191346041,
+          "write_ns": 15191829125,
+          "frame_ns": 15191989291,
+          "latency_ms": 0.160166
+        },
+        {
+          "key": 30,
+          "scheduled_ns": 15253846041,
+          "write_ns": 15262669333,
+          "frame_ns": 15262885916,
+          "latency_ms": 0.216583
+        },
+        {
+          "key": 31,
+          "scheduled_ns": 15316346041,
+          "write_ns": 15324022250,
+          "frame_ns": 15324223083,
+          "latency_ms": 0.200833
+        },
+        {
+          "key": 32,
+          "scheduled_ns": 15378846041,
+          "write_ns": 15385802791,
+          "frame_ns": 15385934083,
+          "latency_ms": 0.131292
+        },
+        {
+          "key": 33,
+          "scheduled_ns": 15441346041,
+          "write_ns": 15445736166,
+          "frame_ns": 15445914958,
+          "latency_ms": 0.178792
+        },
+        {
+          "key": 34,
+          "scheduled_ns": 15503846041,
+          "write_ns": 15506096833,
+          "frame_ns": 15506236916,
+          "latency_ms": 0.140083
+        },
+        {
+          "key": 35,
+          "scheduled_ns": 15566346041,
+          "write_ns": 15573286000,
+          "frame_ns": 15573428375,
+          "latency_ms": 0.142375
+        },
+        {
+          "key": 36,
+          "scheduled_ns": 15628846041,
+          "write_ns": 15636940208,
+          "frame_ns": 15637121125,
+          "latency_ms": 0.180917
+        },
+        {
+          "key": 37,
+          "scheduled_ns": 15691346041,
+          "write_ns": 15697056916,
+          "frame_ns": 15697196291,
+          "latency_ms": 0.139375
+        },
+        {
+          "key": 38,
+          "scheduled_ns": 15753846041,
+          "write_ns": 15759281541,
+          "frame_ns": 15759414791,
+          "latency_ms": 0.13325
+        },
+        {
+          "key": 39,
+          "scheduled_ns": 15816346041,
+          "write_ns": 15824167375,
+          "frame_ns": 15824289708,
+          "latency_ms": 0.122333
+        },
+        {
+          "key": 40,
+          "scheduled_ns": 15878846041,
+          "write_ns": 15881806458,
+          "frame_ns": 15881976083,
+          "latency_ms": 0.169625
+        },
+        {
+          "key": 41,
+          "scheduled_ns": 15941346041,
+          "write_ns": 15947132750,
+          "frame_ns": 15947359708,
+          "latency_ms": 0.226958
+        },
+        {
+          "key": 42,
+          "scheduled_ns": 16003846041,
+          "write_ns": 16008806375,
+          "frame_ns": 16008970875,
+          "latency_ms": 0.1645
+        },
+        {
+          "key": 43,
+          "scheduled_ns": 16066346041,
+          "write_ns": 16075685291,
+          "frame_ns": 16075866208,
+          "latency_ms": 0.180917
+        },
+        {
+          "key": 44,
+          "scheduled_ns": 16128846041,
+          "write_ns": 16129787500,
+          "frame_ns": 16129934000,
+          "latency_ms": 0.1465
+        },
+        {
+          "key": 45,
+          "scheduled_ns": 16191346041,
+          "write_ns": 16191467875,
+          "frame_ns": 16191649875,
+          "latency_ms": 0.182
+        },
+        {
+          "key": 46,
+          "scheduled_ns": 16253846041,
+          "write_ns": 16261071541,
+          "frame_ns": 16261263541,
+          "latency_ms": 0.192
+        },
+        {
+          "key": 47,
+          "scheduled_ns": 16316346041,
+          "write_ns": 16323261916,
+          "frame_ns": 16323469291,
+          "latency_ms": 0.207375
+        },
+        {
+          "key": 48,
+          "scheduled_ns": 16378846041,
+          "write_ns": 16385547833,
+          "frame_ns": 16385725416,
+          "latency_ms": 0.177583
+        },
+        {
+          "key": 49,
+          "scheduled_ns": 16441346041,
+          "write_ns": 16443968458,
+          "frame_ns": 16444140666,
+          "latency_ms": 0.172208
+        },
+        {
+          "key": 50,
+          "scheduled_ns": 16503846041,
+          "write_ns": 16512381333,
+          "frame_ns": 16512510958,
+          "latency_ms": 0.129625
+        },
+        {
+          "key": 51,
+          "scheduled_ns": 16566346041,
+          "write_ns": 16566575750,
+          "frame_ns": 16566788833,
+          "latency_ms": 0.213083
+        },
+        {
+          "key": 52,
+          "scheduled_ns": 16628846041,
+          "write_ns": 16638535208,
+          "frame_ns": 16638675833,
+          "latency_ms": 0.140625
+        },
+        {
+          "key": 53,
+          "scheduled_ns": 16691346041,
+          "write_ns": 16692766916,
+          "frame_ns": 16693066708,
+          "latency_ms": 0.299792
+        },
+        {
+          "key": 54,
+          "scheduled_ns": 16753846041,
+          "write_ns": 16755477041,
+          "frame_ns": 16755642583,
+          "latency_ms": 0.165542
+        },
+        {
+          "key": 55,
+          "scheduled_ns": 16816346041,
+          "write_ns": 16822092125,
+          "frame_ns": 16822223875,
+          "latency_ms": 0.13175
+        },
+        {
+          "key": 56,
+          "scheduled_ns": 16878846041,
+          "write_ns": 16884003041,
+          "frame_ns": 16884301291,
+          "latency_ms": 0.29825
+        },
+        {
+          "key": 57,
+          "scheduled_ns": 16941346041,
+          "write_ns": 16942727291,
+          "frame_ns": 16942894333,
+          "latency_ms": 0.167042
+        },
+        {
+          "key": 58,
+          "scheduled_ns": 17003846041,
+          "write_ns": 17009531958,
+          "frame_ns": 17009717500,
+          "latency_ms": 0.185542
+        },
+        {
+          "key": 59,
+          "scheduled_ns": 17066346041,
+          "write_ns": 17068168375,
+          "frame_ns": 17068328833,
+          "latency_ms": 0.160458
+        },
+        {
+          "key": 60,
+          "scheduled_ns": 17128846041,
+          "write_ns": 17134281916,
+          "frame_ns": 17134436166,
+          "latency_ms": 0.15425
+        },
+        {
+          "key": 61,
+          "scheduled_ns": 17191346041,
+          "write_ns": 17197254166,
+          "frame_ns": 17197402333,
+          "latency_ms": 0.148167
+        },
+        {
+          "key": 62,
+          "scheduled_ns": 17253846041,
+          "write_ns": 17263460500,
+          "frame_ns": 17263675333,
+          "latency_ms": 0.214833
+        },
+        {
+          "key": 63,
+          "scheduled_ns": 17316346041,
+          "write_ns": 17318275541,
+          "frame_ns": 17318429458,
+          "latency_ms": 0.153917
+        },
+        {
+          "key": 64,
+          "scheduled_ns": 17378846041,
+          "write_ns": 17386666416,
+          "frame_ns": 17386842416,
+          "latency_ms": 0.176
+        },
+        {
+          "key": 65,
+          "scheduled_ns": 17441346041,
+          "write_ns": 17447436916,
+          "frame_ns": 17447630041,
+          "latency_ms": 0.193125
+        },
+        {
+          "key": 66,
+          "scheduled_ns": 17503846041,
+          "write_ns": 17505766166,
+          "frame_ns": 17505972041,
+          "latency_ms": 0.205875
+        },
+        {
+          "key": 67,
+          "scheduled_ns": 17566346041,
+          "write_ns": 17571111000,
+          "frame_ns": 17573801708,
+          "latency_ms": 2.690708
+        },
+        {
+          "key": 68,
+          "scheduled_ns": 17628846041,
+          "write_ns": 17629169333,
+          "frame_ns": 17629374333,
+          "latency_ms": 0.205
+        },
+        {
+          "key": 69,
+          "scheduled_ns": 17691346041,
+          "write_ns": 17691689166,
+          "frame_ns": 17691845583,
+          "latency_ms": 0.156417
+        },
+        {
+          "key": 70,
+          "scheduled_ns": 17753846041,
+          "write_ns": 17757825958,
+          "frame_ns": 17758024208,
+          "latency_ms": 0.19825
+        },
+        {
+          "key": 71,
+          "scheduled_ns": 17816346041,
+          "write_ns": 17822910166,
+          "frame_ns": 17823065750,
+          "latency_ms": 0.155584
+        },
+        {
+          "key": 72,
+          "scheduled_ns": 17878846041,
+          "write_ns": 17879163791,
+          "frame_ns": 17879301708,
+          "latency_ms": 0.137917
+        },
+        {
+          "key": 73,
+          "scheduled_ns": 17941346041,
+          "write_ns": 17947998791,
+          "frame_ns": 17948144625,
+          "latency_ms": 0.145834
+        },
+        {
+          "key": 74,
+          "scheduled_ns": 18003846041,
+          "write_ns": 18009766458,
+          "frame_ns": 18009923500,
+          "latency_ms": 0.157042
+        },
+        {
+          "key": 75,
+          "scheduled_ns": 18066346041,
+          "write_ns": 18072850666,
+          "frame_ns": 18072991958,
+          "latency_ms": 0.141292
+        },
+        {
+          "key": 76,
+          "scheduled_ns": 18128846041,
+          "write_ns": 18137082333,
+          "frame_ns": 18137247625,
+          "latency_ms": 0.165292
+        },
+        {
+          "key": 77,
+          "scheduled_ns": 18191346041,
+          "write_ns": 18196115416,
+          "frame_ns": 18196252166,
+          "latency_ms": 0.13675
+        },
+        {
+          "key": 78,
+          "scheduled_ns": 18253846041,
+          "write_ns": 18254717333,
+          "frame_ns": 18254885208,
+          "latency_ms": 0.167875
+        },
+        {
+          "key": 79,
+          "scheduled_ns": 18316346041,
+          "write_ns": 18323264541,
+          "frame_ns": 18323432125,
+          "latency_ms": 0.167584
+        },
+        {
+          "key": 80,
+          "scheduled_ns": 18378846041,
+          "write_ns": 18385821583,
+          "frame_ns": 18385983958,
+          "latency_ms": 0.162375
+        }
+      ],
+      "steady": {
+        "start_ns": 13410096041,
+        "stop_signal_window_ns": [
+          18413181666,
+          18413246833
+        ],
+        "wall_seconds": 5.003085625,
+        "cpu_before": {
+          "sample_ns": 13410077375,
+          "user_ticks": 95513,
+          "system_ticks": 348867,
+          "user_ns": 3979708,
+          "system_ns": 14536125,
+          "threads": 2,
+          "resident_bytes": 6619136,
+          "virtual_bytes": 445769728000
+        },
+        "cpu_after": {
+          "sample_ns": 18413270625,
+          "user_ticks": 36432012,
+          "system_ticks": 60223728,
+          "user_ns": 1518000500,
+          "system_ns": 2509322000,
+          "threads": 2,
+          "resident_bytes": 9732096,
+          "virtual_bytes": 445769728000
+        },
+        "cpu_user_seconds": 1.514020792,
+        "cpu_system_seconds": 2.494785875,
+        "cpu_total_seconds": 4.008806667,
+        "cpu_sample_wall_seconds": 5.00319325,
+        "cpu_percent_one_core": 80.12496153331675,
+        "host_bytes_read": 12960,
+        "p50_ms": 0.1677295,
+        "p95_ms": 0.2659832999999999,
+        "producer_accepted_bytes": 729935872,
+        "producer_accepted_mib_per_second": 139.13835299390865,
+        "backend_cpu_seconds": 8.423960999999998
+      },
+      "post_stop_ack_ms": 0.152417,
+      "hidden_output_check": "passed: no BUSY/DONE wire markers while hidden",
+      "drain_samples": [
+        {
+          "pid": 55393,
+          "selected_ns": 18413465833,
+          "done_frame_ns": 18432569541,
+          "selection_to_done_ms": 19.103708,
+          "stop_to_done_ms": 19.387875
+        },
+        {
+          "pid": 55394,
+          "selected_ns": 18432795500,
+          "done_frame_ns": 18451966416,
+          "selection_to_done_ms": 19.170916,
+          "stop_to_done_ms": 38.78475
+        },
+        {
+          "pid": 55395,
+          "selected_ns": 18452075750,
+          "done_frame_ns": 18469690041,
+          "selection_to_done_ms": 17.614291,
+          "stop_to_done_ms": 56.508375
+        },
+        {
+          "pid": 55396,
+          "selected_ns": 18469806250,
+          "done_frame_ns": 18487965750,
+          "selection_to_done_ms": 18.1595,
+          "stop_to_done_ms": 74.784084
+        }
+      ],
+      "producer_stats": [
+        {
+          "pid": 55393,
+          "generation": 1,
+          "accepted_bytes": 182803456,
+          "unwritten_discarded_bytes": 9216,
+          "start_ns": 782507666,
+          "stop_ns": 5785545791,
+          "window_seconds": 5.003038125,
+          "backend_cpu_seconds": 2.108182
+        },
+        {
+          "pid": 55394,
+          "generation": 1,
+          "accepted_bytes": 182075392,
+          "unwritten_discarded_bytes": 0,
+          "start_ns": 704452250,
+          "stop_ns": 5707460625,
+          "window_seconds": 5.003008375,
+          "backend_cpu_seconds": 2.116183
+        },
+        {
+          "pid": 55395,
+          "generation": 1,
+          "accepted_bytes": 182557696,
+          "unwritten_discarded_bytes": 9216,
+          "start_ns": 632802166,
+          "stop_ns": 5635854458,
+          "window_seconds": 5.003052292,
+          "backend_cpu_seconds": 2.098988
+        },
+        {
+          "pid": 55396,
+          "generation": 1,
+          "accepted_bytes": 182499328,
+          "unwritten_discarded_bytes": 2048,
+          "start_ns": 556308000,
+          "stop_ns": 5559175583,
+          "window_seconds": 5.002867583,
+          "backend_cpu_seconds": 2.100608
+        }
+      ],
+      "drain_complete_ms": 74.784084
+    }
+  ]
+}

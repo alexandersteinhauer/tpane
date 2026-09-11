@@ -12,6 +12,7 @@ use crossterm::event::{Event, MouseButton, MouseEvent, MouseEventKind};
 use crate::{
     pane::Pane,
     tree::{Action, Id, Layout, Tree},
+    wake::Wake,
 };
 
 pub struct App {
@@ -24,6 +25,8 @@ pub struct App {
     rows: u16,
     cell: (u16, u16),
     dirty: bool,
+    content_dirty: bool,
+    wake: Wake,
     focused: bool,
     capture: Option<Capture>,
     confirm: Option<Id>,
@@ -40,12 +43,19 @@ enum Capture {
 }
 
 impl App {
-    pub fn new(shell: PathBuf, cols: u16, rows: u16, cell: (u16, u16)) -> Result<Self> {
+    pub fn new(shell: PathBuf, cols: u16, rows: u16, cell: (u16, u16), wake: Wake) -> Result<Self> {
         let (cols, rows) = (cols.max(1), rows.max(1));
         let launch_directory = std::env::current_dir()?;
         let tree = Tree::new(1);
         let layout = tree.layout(cols, rows);
-        let pane = Pane::new(&shell, &launch_directory, cols, layout.rows, cell)?;
+        let pane = Pane::new(
+            &shell,
+            &launch_directory,
+            cols,
+            layout.rows,
+            cell,
+            wake.clone(),
+        )?;
         Ok(Self {
             tree,
             panes: BTreeMap::from([(1, pane)]),
@@ -56,6 +66,8 @@ impl App {
             rows,
             cell,
             dirty: true,
+            content_dirty: true,
+            wake,
             focused: true,
             capture: None,
             confirm: None,
@@ -66,7 +78,7 @@ impl App {
         })
     }
 
-    pub fn tick(&mut self) -> Result<Option<u8>> {
+    pub fn tick(&mut self) -> Result<(Option<u8>, bool)> {
         self.cleanup.retain(|job| !job.is_finished());
         if self
             .notice
@@ -77,34 +89,47 @@ impl App {
             self.dirty = true;
         }
         let ids: Vec<_> = self.panes.keys().copied().collect();
-        let mut budget = 8;
+        let mut budget = 64;
         let started = Instant::now();
-        let mut finished = Vec::new();
-        for n in 0..ids.len() {
-            let id = ids[(self.rotation + n) % ids.len()];
-            let progress = self
-                .panes
-                .get_mut(&id)
-                .unwrap()
-                .poll(budget > 0 && started.elapsed() < Duration::from_millis(4));
-            match progress {
-                Ok(progress) => {
-                    if progress.consumed {
-                        budget -= 1;
+        let mut finished = BTreeMap::new();
+        let active = self.tree.active_terminal();
+        let more_work = loop {
+            let mut consumed = false;
+            for n in 0..ids.len() {
+                let id = ids[(self.rotation + n) % ids.len()];
+                if finished.contains_key(&id) {
+                    continue;
+                }
+                let can_read = budget > 0 && started.elapsed() < Duration::from_millis(2);
+                match self.panes.get_mut(&id).unwrap().poll(can_read) {
+                    Ok(progress) => {
+                        if progress.consumed {
+                            budget -= 1;
+                            consumed = true;
+                            self.content_dirty |= Some(id) == active;
+                        }
+                        if let Some(code) = progress.exit {
+                            finished.insert(id, (code, None));
+                        }
                     }
-                    if let Some(code) = progress.exit {
-                        finished.push((id, code, None));
+                    Err(error) => {
+                        finished.insert(id, (1, Some(format!("Shell {id}: {error:#}"))));
                     }
                 }
-                Err(error) => finished.push((id, 1, Some(format!("Shell {id}: {error:#}")))),
             }
-        }
+            if !consumed {
+                break false;
+            }
+            if budget == 0 || started.elapsed() >= Duration::from_millis(2) {
+                break true;
+            }
+        };
         self.rotation = if ids.is_empty() {
             0
         } else {
             (self.rotation + 1) % ids.len()
         };
-        for (id, code, error) in finished {
+        for (id, (code, error)) in finished {
             self.exit_code = code;
             self.remove(id)?;
             if let Some(message) = error {
@@ -114,7 +139,10 @@ impl App {
                 self.notify(message);
             }
         }
-        Ok(self.tree.root.is_none().then_some(self.exit_code))
+        Ok((
+            self.tree.root.is_none().then_some(self.exit_code),
+            more_work,
+        ))
     }
 
     pub fn resize(&mut self, cols: u16, rows: u16, cell: (u16, u16)) -> Result<()> {
@@ -139,6 +167,7 @@ impl App {
     }
 
     pub fn event(&mut self, event: Event) -> Result<()> {
+        self.content_dirty = true;
         match event {
             Event::Mouse(mouse) => self.mouse(mouse),
             Event::FocusGained | Event::FocusLost => {
@@ -238,7 +267,14 @@ impl App {
                     "tab target no longer exists"
                 );
                 let layout = next.layout(self.cols, self.rows);
-                let pane = Pane::new(&self.shell, &cwd, self.cols, layout.rows, self.cell)?;
+                let pane = Pane::new(
+                    &self.shell,
+                    &cwd,
+                    self.cols,
+                    layout.rows,
+                    self.cell,
+                    self.wake.clone(),
+                )?;
                 self.next_id += 2;
                 self.panes.insert(terminal, pane);
                 self.tree = next;
@@ -307,7 +343,11 @@ impl App {
         self.dirty = true;
     }
 
-    pub fn draw(&mut self, output: &mut impl Write) -> Result<()> {
+    pub fn needs_render(&self) -> bool {
+        self.dirty || self.content_dirty
+    }
+
+    pub fn draw(&mut self, output: &mut impl Write) -> Result<bool> {
         let layout = self.tree.layout(self.cols, self.rows);
         let mut frame = Vec::new();
         if self.dirty {
@@ -341,7 +381,8 @@ impl App {
             output.flush()?;
         }
         self.dirty = false;
-        Ok(())
+        self.content_dirty = false;
+        Ok(!frame.is_empty())
     }
 }
 
@@ -429,6 +470,16 @@ mod tests {
         Terminal, TerminalOptions,
         terminal::{Point, PointCoordinate},
     };
+
+    #[test]
+    fn a_clean_render_does_not_count_as_a_presented_frame() {
+        let mut app = App::new(PathBuf::from("/bin/sh"), 12, 4, (0, 0), Wake::new()).unwrap();
+        let mut bytes = Vec::new();
+        assert!(app.draw(&mut bytes).unwrap());
+        bytes.clear();
+        assert!(!app.draw(&mut bytes).unwrap());
+        assert!(bytes.is_empty());
+    }
 
     #[test]
     fn painted_controls_match_layout_hit_targets() {

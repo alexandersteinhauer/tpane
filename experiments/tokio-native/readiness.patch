@@ -1,0 +1,671 @@
+--- a/experiments/tokio-native/transport.rs
++++ b/experiments/tokio-native/transport.rs
+@@ -14,19 +14,18 @@
+ use anyhow::{Context, Result, ensure};
+ use tokio::{
+     io::unix::AsyncFd,
+-    sync::{Notify, Semaphore, mpsc},
++    sync::{Notify, mpsc},
+     task::JoinHandle,
+ };
+ 
+ use crate::{
+-    bus::{Bus, Control, PtyEvent},
++    bus::{Bus, Control},
++    readiness::Master,
+     tree::Id,
+ };
+ 
+ const MAX_PENDING_INPUT: usize = 8 * 1024 * 1024;
+ const CHUNK: usize = 16 * 1024;
+-const OUTPUT_CREDITS: usize = 16;
+-type Master = Arc<AsyncFd<OwnedFd>>;
+ 
+ pub struct Connection {
+     pub writer: Writer,
+@@ -74,7 +73,7 @@
+         // Receiver shutdown also cancels an idle read or a wait for pane credit.
+         tokio::select! {
+             _ = bus.pty.closed() => {},
+-            _ = read_loop(reader_master, id, &bus.pty) => {},
++            _ = crate::readiness::watch(reader_master, id, &bus.pty) => {},
+         }
+     });
+     // Construct outside the future: abort-before-first-poll must close the queue.
+@@ -90,6 +89,7 @@
+ }
+ 
+ // One syscall per attempt. EINTR is retried cooperatively outside the guard.
++#[cfg(test)]
+ fn read_fd(fd: RawFd, bytes: &mut [u8]) -> io::Result<usize> {
+     // SAFETY: fd is borrowed and the slice is writable for its full length.
+     let count = unsafe { libc::read(fd, bytes.as_mut_ptr().cast(), bytes.len()) };
+@@ -107,55 +107,6 @@
+         Err(io::Error::last_os_error())
+     } else {
+         Ok(count as usize)
+-    }
+-}
+-
+-async fn read_loop(master: Master, id: Id, tx: &mpsc::Sender<PtyEvent>) {
+-    let credits = Arc::new(Semaphore::new(OUTPUT_CREDITS));
+-    let mut buffer = [0; CHUNK];
+-    loop {
+-        // Credit includes events waiting for the shared bus and events retained
+-        // by main after recv. Never reserve shared bus slots for idle panes.
+-        let credit = Arc::clone(&credits).acquire_owned().await.unwrap();
+-        let result = loop {
+-            let attempt = match master.readable().await {
+-                Ok(mut ready) => ready.try_io(|fd| read_fd(fd.get_ref().as_raw_fd(), &mut buffer)),
+-                Err(error) => break Err(error),
+-            };
+-            match attempt {
+-                Ok(Err(error)) if error.kind() == io::ErrorKind::Interrupted => {}
+-                Ok(result) => break result,
+-                Err(_would_block) => {}
+-            }
+-            tokio::task::yield_now().await;
+-        };
+-        let event = match result {
+-            Ok(0) => {
+-                drop(credit);
+-                PtyEvent::Eof(id)
+-            }
+-            // Linux PTY slave hangup is EIO, not a transport failure.
+-            Err(error) if error.raw_os_error() == Some(libc::EIO) => {
+-                drop(credit);
+-                PtyEvent::Eof(id)
+-            }
+-            Ok(count) => PtyEvent::Output {
+-                id,
+-                bytes: buffer[..count].to_vec(),
+-                _credit: credit,
+-            },
+-            Err(error) => {
+-                drop(credit);
+-                PtyEvent::ReadError { id, error }
+-            }
+-        };
+-        let terminal = !matches!(&event, PtyEvent::Output { .. });
+-        // Terminal events use the SAME FIFO as data, never the control channel.
+-        if tx.send(event).await.is_err() || terminal {
+-            return;
+-        }
+-        // AsyncFd can stay ready forever. Bound work even on a hot descriptor.
+-        tokio::task::yield_now().await;
+     }
+ }
+ 
+@@ -326,7 +277,7 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+-    use crate::bus;
++    use crate::bus::{self, PtyEvent};
+     use std::{
+         net::{TcpListener, TcpStream},
+         os::unix::net::UnixStream,
+@@ -394,7 +345,7 @@
+     }
+ 
+     #[tokio::test(flavor = "current_thread")]
+-    async fn direct_routing_held_pane_credits_and_eof_after_exact_output() {
++    async fn direct_routing_held_readiness_and_eof_after_exact_output() {
+         timeout(TEST_TIMEOUT, async {
+             let (bus, mut events, mut controls) = bus::channel();
+             let (_connection, peer) = pair(11, bus.clone());
+@@ -404,70 +355,51 @@
+             let producer = tokio::spawn(async move {
+                 write_all(&peer, &send).await.unwrap();
+             });
+-            while events.len() < OUTPUT_CREDITS {
+-                tokio::task::yield_now().await;
+-            }
+-            assert_eq!(events.len(), OUTPUT_CREDITS);
++            let PtyEvent::Ready { id, ready } = events.recv().await.unwrap() else {
++                panic!("ready expected")
++            };
++            assert_eq!(id, 11);
++            assert!(events.is_empty());
+             assert!(!producer.is_finished());
+-            let mut held = Vec::new();
++            // An unread pane has one token, not a channel full of byte buffers.
++            write_all(&other_peer, b"other pane").await.unwrap();
++            let PtyEvent::Ready { id, ready: other } = events.recv().await.unwrap() else {
++                panic!("other ready expected")
++            };
++            assert_eq!(id, 22);
++            let mut bytes = [0; CHUNK];
++            assert_eq!(other.read(&mut bytes).unwrap(), 10);
++            assert_eq!(&bytes[..10], b"other pane");
+             let mut received = Vec::new();
+-            for _ in 0..OUTPUT_CREDITS {
+-                match events.recv().await.unwrap() {
+-                    PtyEvent::Output { id, bytes, _credit } => {
+-                        assert_eq!(id, 11);
+-                        assert!(!bytes.is_empty() && bytes.len() <= CHUNK);
+-                        received.extend_from_slice(&bytes);
+-                        held.push(_credit);
++            let mut lease = Some(ready);
++            'output: loop {
++                let mut ready = match lease.take() {
++                    Some(ready) => ready,
++                    None => match events.recv().await.unwrap() {
++                        PtyEvent::Ready { id, ready } => {
++                            assert_eq!(id, 11);
++                            ready
++                        }
++                        _ => panic!("readiness error"),
++                    },
++                };
++                loop {
++                    match ready.read(&mut bytes) {
++                        Ok(0) => {
++                            ready.stop();
++                            break 'output;
++                        }
++                        Ok(count) => received.extend_from_slice(&bytes[..count]),
++                        Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
++                        Err(error) => panic!("read failed: {error}"),
+                     }
+-                    _ => panic!("data expected"),
+-                }
+-            }
+-            for _ in 0..32 {
+-                tokio::task::yield_now().await;
+-            }
+-            assert!(events.is_empty(), "recv must not release pane credits");
+-            assert!(!producer.is_finished());
+-            // A pane stalled on its own credits cannot monopolize shared bus.
+-            write_all(&other_peer, b"other pane").await.unwrap();
+-            match events.recv().await.unwrap() {
+-                PtyEvent::Output { id, bytes, .. } => {
+-                    assert_eq!(id, 22);
+-                    assert_eq!(bytes, b"other pane");
+-                }
+-                _ => panic!("other pane data expected"),
+-            }
+-            drop(held.pop());
+-            match events.recv().await.unwrap() {
+-                PtyEvent::Output { id, bytes, _credit } => {
+-                    assert_eq!(id, 11);
+-                    received.extend_from_slice(&bytes);
+-                    held.push(_credit);
+-                }
+-                _ => panic!("one released credit must allow another chunk"),
+-            }
+-            for _ in 0..32 {
+-                tokio::task::yield_now().await;
+-            }
+-            assert!(events.is_empty());
+-            drop(held);
+-            loop {
+-                match events.recv().await.unwrap() {
+-                    PtyEvent::Output { id, bytes, .. } => {
+-                        assert_eq!(id, 11);
+-                        assert!(!bytes.is_empty() && bytes.len() <= CHUNK);
+-                        received.extend_from_slice(&bytes);
+-                    }
+-                    PtyEvent::Eof(id) => {
+-                        assert_eq!(id, 11);
+-                        break;
+-                    }
+-                    _ => panic!("unexpected read error"),
+                 }
+             }
+             producer.await.unwrap();
+             assert_eq!(received, expected);
+             assert!(events.is_empty());
+             assert!(controls.try_recv().is_err(), "EOF must not use control");
++            drop(other);
+         })
+         .await
+         .unwrap();
+@@ -593,7 +525,12 @@
+                     .pending
+                     .is_empty()
+             );
+-            assert!(matches!(events.recv().await.unwrap(), PtyEvent::Eof(41)));
++            let PtyEvent::Ready { id, mut ready } = events.recv().await.unwrap() else {
++                panic!("readiness expected")
++            };
++            assert_eq!(id, 41);
++            assert_eq!(ready.read(&mut [0; 1]).unwrap(), 0);
++            ready.stop();
+         })
+         .await
+         .unwrap();
+@@ -652,7 +589,7 @@
+     }
+ 
+     #[tokio::test(flavor = "current_thread")]
+-    async fn read_error_is_on_data_bus_after_preceding_output() {
++    async fn read_error_follows_directly_consumed_output() {
+         timeout(TEST_TIMEOUT, async {
+             // TCP reset gives a genuine non-EIO read error without invalidating
+             // an owned descriptor or relying on a mocked readiness source.
+@@ -665,9 +602,18 @@
+             let _connection = connect(master.as_raw_fd(), 73, bus).unwrap();
+             drop(master);
+             write_all(&peer, b"before reset").await.unwrap();
+-            while events.is_empty() {
+-                tokio::task::yield_now().await;
+-            }
++            let PtyEvent::Ready { id, ready } = events.recv().await.unwrap() else {
++                panic!("ready expected")
++            };
++            assert_eq!(id, 73);
++            let mut bytes = [0; 128];
++            let count = ready.read(&mut bytes).unwrap();
++            assert_eq!(&bytes[..count], b"before reset");
++            assert_eq!(
++                ready.read(&mut bytes).unwrap_err().kind(),
++                io::ErrorKind::WouldBlock
++            );
++            drop(ready);
+             let linger = libc::linger {
+                 l_onoff: 1,
+                 l_linger: 0,
+@@ -685,22 +631,15 @@
+                 0
+             );
+             drop(peer);
+-            let mut received = Vec::new();
+-            loop {
+-                match events.recv().await.unwrap() {
+-                    PtyEvent::Output { id, bytes, .. } => {
+-                        assert_eq!(id, 73);
+-                        received.extend_from_slice(&bytes);
+-                    }
+-                    PtyEvent::ReadError { id, error } => {
+-                        assert_eq!(id, 73);
+-                        assert_eq!(error.kind(), io::ErrorKind::ConnectionReset);
+-                        break;
+-                    }
+-                    _ => panic!("expected reset, not EOF"),
+-                }
+-            }
+-            assert_eq!(received, b"before reset");
++            let PtyEvent::Ready { id, mut ready } = events.recv().await.unwrap() else {
++                panic!("ready expected")
++            };
++            assert_eq!(id, 73);
++            assert_eq!(
++                ready.read(&mut bytes).unwrap_err().kind(),
++                io::ErrorKind::ConnectionReset
++            );
++            ready.stop();
+             assert!(controls.try_recv().is_err());
+         })
+         .await
+@@ -736,20 +675,31 @@
+                 0
+             );
+             assert_eq!(write_fd(slave.as_raw_fd(), b"pty output").unwrap(), 10);
+-            // Let transport observe data before PTY hangup (some kernels discard
+-            // unread PTY data on last slave close).
+-            while events.is_empty() {
+-                tokio::task::yield_now().await;
+-            }
++            // Consume before hangup: some kernels discard unread PTY data on
++            // last slave close. A readiness notification does not consume it.
++            let PtyEvent::Ready { id, ready } = events.recv().await.unwrap() else {
++                panic!("ready expected")
++            };
++            assert_eq!(id, 19);
++            let mut bytes = [0; 64];
++            assert_eq!(ready.read(&mut bytes).unwrap(), 10);
++            assert_eq!(&bytes[..10], b"pty output");
++            assert_eq!(
++                ready.read(&mut bytes).unwrap_err().kind(),
++                io::ErrorKind::WouldBlock
++            );
++            drop(ready);
+             drop(slave);
+-            match events.recv().await.unwrap() {
+-                PtyEvent::Output { id, bytes, .. } => {
+-                    assert_eq!(id, 19);
+-                    assert_eq!(bytes, b"pty output");
+-                }
+-                _ => panic!("PTY output expected first"),
+-            }
+-            assert!(matches!(events.recv().await.unwrap(), PtyEvent::Eof(19)));
++            let PtyEvent::Ready { id, mut ready } = events.recv().await.unwrap() else {
++                panic!("hangup readiness expected")
++            };
++            assert_eq!(id, 19);
++            match ready.read(&mut bytes) {
++                Ok(0) => {}
++                Err(error) if error.raw_os_error() == Some(libc::EIO) => {}
++                result => panic!("expected PTY EOF, got {result:?}"),
++            }
++            ready.stop();
+         })
+         .await
+         .unwrap();
+--- a/experiments/tokio-native/main.rs
++++ b/experiments/tokio-native/main.rs
+@@ -11,36 +11,26 @@
+ mod pane;
+ mod process_watch;
+ mod pty;
++mod readiness;
+ mod render;
+-mod runtime;
+ mod selection;
+ mod transport;
+ mod tree;
+ 
+-use std::{
+-    path::PathBuf,
+-    process::ExitCode,
+-    time::{Duration, Instant},
+-};
++use std::{path::PathBuf, process::ExitCode, time::Duration};
+ 
+ use anyhow::{Context, Result, bail};
+ use crossterm::{event::Event, terminal};
+ use futures_util::StreamExt;
+-use tokio::{
+-    signal::unix::{SignalKind, signal},
+-    sync::mpsc,
+-};
++use tokio::signal::unix::{SignalKind, signal};
+ 
+-use crate::{
+-    app::App,
+-    bus::{Control, PtyEvent},
+-    host::Host,
+-    host_input::HostInput,
+-    output::HostOutput,
+-};
++use crate::{app::App, bus::Control, host::Host, host_input::HostInput, output::HostOutput};
+ 
+ fn main() -> ExitCode {
+-    let runtime = runtime::new();
++    let runtime = tokio::runtime::Builder::new_current_thread()
++        .enable_all()
++        .build()
++        .expect("Tokio runtime");
+     let result = runtime.block_on(run());
+     trace("run returned");
+     let code = match result {
+@@ -105,12 +95,9 @@
+     let mut input = HostInput::new();
+     let result = async {
+         let mut output_busy = true;
+-        let mut processed = 0;
+-        let mut batch = Vec::with_capacity(64);
+-        let mut turn = Instant::now();
+         loop {
+             if let Some(code) = app.exit_code() { return Ok(code); }
+-            let render = app.needs_render() && !output_busy;
++            let work = app.has_ready() || (app.needs_render() && !output_busy);
+             let timers = !app.timers.is_empty();
+             let cleanup = !app.cleanup.is_empty();
+             tokio::select! {
+@@ -119,13 +106,7 @@
+                 _ = hangup.recv() => return Ok(0),
+                 _ = interrupt.recv() => return Ok(0),
+                 _ = quit.recv() => return Ok(0),
+-                _ = std::future::ready(()), if render => {
+-                    let mut frame = Vec::new();
+-                    if app.draw(&mut frame)? {
+-                        output.send_frame(frame)?;
+-                        output_busy = true;
+-                    }
+-                }
++                event = input.events.recv() => host_event(&mut app, event.context("terminal input stream ended")??)?,
+                 Some(event) = control.recv() => {
+                     if let Control::FrameWritten { result } = event {
+                         result.context("write host frame")?;
+@@ -134,24 +115,36 @@
+                 }
+                 Some(expired) = app.timers.next(), if timers => app.timeout(expired.into_inner())?,
+                 Some(result) = app.cleanup.join_next(), if cleanup => { result.context("pane cleanup task")?; }
+-                event = next_activity(&mut input.events, &mut data, &mut batch) => match event? {
+-                    Activity::Input(Event::Resize(_, _)) => {
+-                        let (cols, rows, cell) = dimensions()?;
+-                        app.resize(cols, rows, cell)?;
+-                    }
+-                    Activity::Input(event) => app.event(event)?,
+-                    Activity::PtyBatch => {
+-                        processed += batch.len();
+-                        for event in batch.drain(..) { app.data(event)?; }
+-                    }
++                event = data.recv() => app.data(event.context("PTY readiness bus closed")?)?,
++                _ = std::future::ready(()), if work => {},
++            }
++            // Collect ready notifications, not payload chunks. The bounded work
++            // turn below reads the actual PTYs, including bytes not yet surfaced
++            // through a reactor task. Continuous input cannot starve that turn.
++            for _ in 0..128 {
++                match input.events.try_recv() {
++                    Ok(event) => host_event(&mut app, event?)?,
++                    Err(_) => break,
+                 }
+             }
+-            processed += 1;
+-            if processed >= 64 || turn.elapsed() >= Duration::from_millis(2) {
+-                tokio::task::yield_now().await;
+-                processed = 0;
+-                turn = Instant::now();
++            for _ in 0..128 {
++                match data.try_recv() {
++                    Ok(event) => app.data(event)?,
++                    Err(_) => break,
++                }
+             }
++            app.drain_ready()?;
++            if let Some(code) = app.exit_code() { return Ok(code); }
++            if !output_busy && app.needs_render() {
++                let mut frame = Vec::new();
++                if app.draw(&mut frame)? {
++                    output.send_frame(frame)?;
++                    output_busy = true;
++                }
++            }
++            // Fairness, not a frame interval: let notifier/writer tasks run even
++            // when a hot PTY retains its lease for the next bounded turn.
++            tokio::task::yield_now().await;
+         }
+     }.await;
+     trace("dropping input");
+@@ -171,22 +164,12 @@
+     result
+ }
+ 
+-enum Activity {
+-    Input(Event),
+-    PtyBatch,
+-}
+-
+-async fn next_activity(
+-    input: &mut mpsc::Receiver<std::io::Result<Event>>,
+-    data: &mut mpsc::Receiver<PtyEvent>,
+-    batch: &mut Vec<PtyEvent>,
+-) -> Result<Activity> {
+-    tokio::select! {
+-        event = input.recv() => Ok(Activity::Input(event.context("terminal input stream ended")??)),
+-        count = data.recv_many(batch, 64) => {
+-            anyhow::ensure!(count != 0, "PTY event bus closed");
+-            Ok(Activity::PtyBatch)
+-        },
++fn host_event(app: &mut App, event: Event) -> Result<()> {
++    if matches!(event, Event::Resize(_, _)) {
++        let (cols, rows, cell) = dimensions()?;
++        app.resize(cols, rows, cell)
++    } else {
++        app.event(event)
+     }
+ }
+ 
+--- a/experiments/tokio-native/app.rs
++++ b/experiments/tokio-native/app.rs
+@@ -1,5 +1,5 @@
+ use std::{
+-    collections::BTreeMap,
++    collections::{BTreeMap, VecDeque},
+     io::{self, Write},
+     path::PathBuf,
+     time::{Duration, Instant},
+@@ -20,6 +20,8 @@
+ pub struct App {
+     tree: Tree,
+     panes: BTreeMap<Id, Pane>,
++    ready: VecDeque<(Id, crate::readiness::ReadReady)>,
++    read_buffer: Box<[u8; 16 * 1024]>,
+     shell: PathBuf,
+     launch_directory: PathBuf,
+     next_id: Id,
+@@ -71,6 +73,8 @@
+         Ok(Self {
+             tree,
+             panes: BTreeMap::from([(1, pane)]),
++            ready: VecDeque::new(),
++            read_buffer: Box::new([0; 16 * 1024]),
+             shell,
+             launch_directory,
+             next_id: 2,
+@@ -95,22 +99,74 @@
+ 
+     pub fn data(&mut self, event: PtyEvent) -> Result<()> {
+         match event {
+-            PtyEvent::Output { id, bytes, _credit } => {
+-                if let Some(pane) = self.panes.get_mut(&id) {
+-                    let result = pane.output(&bytes);
++            PtyEvent::Ready { id, mut ready } => {
++                if self.panes.contains_key(&id) {
++                    self.ready.push_back((id, ready));
++                } else {
++                    ready.stop();
++                }
++            }
++            PtyEvent::ReadError { id, error } => self.failed(id, error.to_string())?,
++        }
++        Ok(())
++    }
++
++    pub fn has_ready(&self) -> bool {
++        !self.ready.is_empty()
++    }
++
++    /// One bounded, round-robin work turn over real PTY readiness. A lease stays
++    /// here across budget boundaries; only WouldBlock rearms its notification.
++    /// No queued byte message is mistaken for the end of available terminal work.
++    pub fn drain_ready(&mut self) -> Result<()> {
++        self.drain_ready_turn(64, Duration::from_millis(2))
++    }
++
++    fn drain_ready_turn(&mut self, reads: usize, duration: Duration) -> Result<()> {
++        let started = Instant::now();
++        for _ in 0..reads {
++            let Some((id, mut ready)) = self.ready.pop_front() else {
++                break;
++            };
++            let Some(pane) = self.panes.get_mut(&id) else {
++                ready.stop();
++                continue;
++            };
++            match ready.read(&mut *self.read_buffer) {
++                Ok(0) => {
++                    ready.stop();
++                    pane.eof();
++                    self.settle(id)?;
++                }
++                Ok(count) => {
++                    let result = pane.output(&self.read_buffer[..count]);
+                     self.content_dirty |= self.tree.active_terminal() == Some(id);
+                     if let Err(error) = result {
++                        ready.stop();
+                         self.failed(id, error.to_string())?;
++                    } else {
++                        self.ready.push_back((id, ready));
+                     }
+                 }
+-            }
+-            PtyEvent::Eof(id) => {
+-                if let Some(pane) = self.panes.get_mut(&id) {
++                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
++                    // Drop the lease: the watcher waits for fresh readiness.
++                }
++                Err(error) if error.kind() == io::ErrorKind::Interrupted => {
++                    self.ready.push_back((id, ready));
++                }
++                Err(error) if error.raw_os_error() == Some(libc::EIO) => {
++                    ready.stop();
+                     pane.eof();
+-                }
+-                self.settle(id)?;
+-            }
+-            PtyEvent::ReadError { id, error } => self.failed(id, error.to_string())?,
++                    self.settle(id)?;
++                }
++                Err(error) => {
++                    ready.stop();
++                    self.failed(id, error.to_string())?;
++                }
++            }
++            if started.elapsed() >= duration {
++                break;
++            }
+         }
+         Ok(())
+     }
+@@ -205,6 +261,7 @@
+     }
+ 
+     pub async fn shutdown(&mut self) {
++        self.ready.clear();
+         let mut sessions = Vec::new();
+         for (_, pane) in std::mem::take(&mut self.panes) {
+             let _ = self.watch.unwatch(pane.session.pid());
+@@ -401,6 +458,7 @@
+                 sessions.push(pane.into_session());
+             }
+         }
++        self.ready.retain(|(id, _)| self.panes.contains_key(id));
+         if !sessions.is_empty() {
+             self.cleanup.spawn_blocking(move || drop(sessions));
+         }
+@@ -465,6 +523,7 @@
+ 
+ impl Drop for App {
+     fn drop(&mut self) {
++        self.ready.clear();
+         self.panes.clear();
+     }
+ }
+@@ -536,6 +595,10 @@
+     text.extend(std::iter::repeat_n(' ', width.saturating_sub(text.len())));
+     text
+ }
++
++#[cfg(test)]
++#[path = "turn_tests.rs"]
++mod turn_tests;
+ 
+ #[cfg(test)]
+ mod tests {
+--- a/experiments/tokio-native/bus.rs
++++ b/experiments/tokio-native/bus.rs
+@@ -1,16 +1,14 @@
+ use std::{io, sync::Arc};
+ 
+-use tokio::sync::{OwnedSemaphorePermit, mpsc};
++use tokio::sync::mpsc;
+ 
+ use crate::tree::Id;
+ 
+ pub enum PtyEvent {
+-    Output {
++    Ready {
+         id: Id,
+-        bytes: Vec<u8>,
+-        _credit: OwnedSemaphorePermit,
++        ready: crate::readiness::ReadReady,
+     },
+-    Eof(Id),
+     ReadError {
+         id: Id,
+         error: io::Error,

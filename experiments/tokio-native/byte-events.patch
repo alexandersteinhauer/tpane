@@ -1,0 +1,89 @@
+--- a/experiments/tokio-native/main.rs
++++ b/experiments/tokio-native/main.rs
+@@ -5,14 +5,12 @@
+ mod bus;
+ mod engine;
+ mod host;
+-mod host_input;
+ mod input;
+ mod output;
+ mod pane;
+ mod process_watch;
+ mod pty;
+ mod render;
+-mod runtime;
+ mod selection;
+ mod transport;
+ mod tree;
+@@ -24,7 +22,10 @@
+ };
+ 
+ use anyhow::{Context, Result, bail};
+-use crossterm::{event::Event, terminal};
++use crossterm::{
++    event::{Event, EventStream},
++    terminal,
++};
+ use futures_util::StreamExt;
+ use tokio::{
+     signal::unix::{SignalKind, signal},
+@@ -35,12 +36,14 @@
+     app::App,
+     bus::{Control, PtyEvent},
+     host::Host,
+-    host_input::HostInput,
+     output::HostOutput,
+ };
+ 
+ fn main() -> ExitCode {
+-    let runtime = runtime::new();
++    let runtime = tokio::runtime::Builder::new_current_thread()
++        .enable_all()
++        .build()
++        .expect("Tokio runtime");
+     let result = runtime.block_on(run());
+     trace("run returned");
+     let code = match result {
+@@ -102,7 +105,7 @@
+             return Err(error);
+         }
+     };
+-    let mut input = HostInput::new();
++    let mut input = EventStream::new();
+     let result = async {
+         let mut output_busy = true;
+         let mut processed = 0;
+@@ -134,7 +137,7 @@
+                 }
+                 Some(expired) = app.timers.next(), if timers => app.timeout(expired.into_inner())?,
+                 Some(result) = app.cleanup.join_next(), if cleanup => { result.context("pane cleanup task")?; }
+-                event = next_activity(&mut input.events, &mut data, &mut batch) => match event? {
++                event = next_activity(&mut input, &mut data, &mut batch) => match event? {
+                     Activity::Input(Event::Resize(_, _)) => {
+                         let (cols, rows, cell) = dimensions()?;
+                         app.resize(cols, rows, cell)?;
+@@ -155,8 +158,7 @@
+         }
+     }.await;
+     trace("dropping input");
+-    input.shutdown().await;
+-    drop(data);
++    drop(input);
+     trace("shutting down panes");
+     app.shutdown().await;
+     trace("finishing output");
+@@ -177,12 +179,12 @@
+ }
+ 
+ async fn next_activity(
+-    input: &mut mpsc::Receiver<std::io::Result<Event>>,
++    input: &mut EventStream,
+     data: &mut mpsc::Receiver<PtyEvent>,
+     batch: &mut Vec<PtyEvent>,
+ ) -> Result<Activity> {
+     tokio::select! {
+-        event = input.recv() => Ok(Activity::Input(event.context("terminal input stream ended")??)),
++        event = input.next() => Ok(Activity::Input(event.context("terminal input stream ended")??)),
+         count = data.recv_many(batch, 64) => {
+             anyhow::ensure!(count != 0, "PTY event bus closed");
+             Ok(Activity::PtyBatch)
