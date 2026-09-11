@@ -24,17 +24,66 @@ use crate::{
 };
 
 const MAX_PENDING_INPUT: usize = 8 * 1024 * 1024;
-// Event size sets the per-event fixed costs (readiness re-arm, bus send,
-// credit cycle, allocation) relative to bytes moved. 64 KiB events measured
-// faster 24-pane flood output but slower interactive CPU because macOS
-// allocates above 32 KiB from its large-allocation zone; 32 KiB stays in the
-// small zone. Bounded by readiness exhaustion per event.
+// Also the event capacity: one recycled buffer per credit. Drain length was
+// measured explicitly (16/32/64 KiB and an adaptive variant): 32 KiB minimizes
+// per-event fixed costs (readiness re-arm, bus send, credit cycle, wake)
+// without lengthening interactive renders; larger events regressed 1-8 pane
+// flood output at every allocation strategy tried.
 pub const CHUNK: usize = 32 * 1024;
+// Recycled buffers kept per pane when idle; flood keeps every buffer in
+// flight, so the cap only bounds idle memory (about 64 KiB per pane).
+const EVENT_POOL_CAP: usize = 2;
 const OUTPUT_CREDITS: usize = 16;
 // Bounds worst-case work per published event when a descriptor returns tiny
 // reads. At the PTY's usual ~1 KiB reads, CHUNK fills first.
 const MAX_READS_PER_EVENT: usize = 64;
 type Master = Arc<AsyncFd<OwnedFd>>;
+
+/// A pane output event's buffer, recycled to the pane's reader through the
+/// pool when the consumer drops it. One buffer lives per credit, so the pool
+/// naturally bounds at OUTPUT_CREDITS buffers and steady-state rendering
+/// allocates none.
+pub struct EventBuffer {
+    vec: Vec<u8>,
+    pool: Arc<Mutex<Vec<Vec<u8>>>>,
+}
+
+impl EventBuffer {
+    fn take(pool: &Arc<Mutex<Vec<Vec<u8>>>>) -> Self {
+        let vec = pool
+            .lock()
+            .unwrap()
+            .pop()
+            .unwrap_or_else(|| Vec::with_capacity(CHUNK));
+        Self {
+            vec,
+            pool: Arc::clone(pool),
+        }
+    }
+
+    fn get_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.vec
+    }
+}
+
+impl Drop for EventBuffer {
+    fn drop(&mut self) {
+        let mut vec = std::mem::take(&mut self.vec);
+        vec.clear();
+        let mut pool = self.pool.lock().unwrap();
+        if pool.len() < EVENT_POOL_CAP {
+            pool.push(vec);
+        }
+    }
+}
+
+impl std::ops::Deref for EventBuffer {
+    type Target = Vec<u8>;
+
+    fn deref(&self) -> &Vec<u8> {
+        &self.vec
+    }
+}
 
 pub struct Connection {
     pub writer: Writer,
@@ -136,13 +185,12 @@ enum Terminal {
 
 async fn read_loop(master: Master, id: Id, tx: &mpsc::Sender<PtyEvent>) {
     let credits = Arc::new(Semaphore::new(OUTPUT_CREDITS));
+    let pool = Arc::new(Mutex::new(Vec::new()));
     loop {
         // Credit includes events waiting for the shared bus and events retained
         // by main after recv. Never reserve shared bus slots for idle panes.
         let credit = Arc::clone(&credits).acquire_owned().await.unwrap();
-        // Capacity without zeroing: each read initializes its own prefix, and
-        // only that prefix becomes the event's length.
-        let mut bytes: Vec<u8> = Vec::with_capacity(CHUNK);
+        let mut bytes = EventBuffer::take(&pool);
         // Never exceed the engine's per-feed budget even if the allocator
         // rounds capacity up.
         let capacity = CHUNK;
@@ -165,7 +213,7 @@ async fn read_loop(master: Master, id: Id, tx: &mpsc::Sender<PtyEvent>) {
                     unsafe {
                         read_fd_uninit(
                             fd.get_ref().as_raw_fd(),
-                            bytes.as_mut_ptr().add(len),
+                            bytes.get_mut().as_mut_ptr().add(len),
                             capacity - len,
                         )
                     }
@@ -200,7 +248,7 @@ async fn read_loop(master: Master, id: Id, tx: &mpsc::Sender<PtyEvent>) {
             }
         }
         // SAFETY: the first `len` bytes were initialized by successful reads.
-        unsafe { bytes.set_len(len) };
+        unsafe { bytes.get_mut().set_len(len) };
         // Publish accumulated bytes first so terminal events keep FIFO order.
         if bytes.is_empty() {
             drop(credit);
@@ -467,6 +515,31 @@ mod tests {
         bytes
     }
 
+    #[test]
+    fn event_buffers_recycle_through_the_pool_up_to_the_cap() {
+        let pool = Arc::new(Mutex::new(Vec::new()));
+        let mut first = EventBuffer::take(&pool);
+        assert_eq!(first.get_mut().capacity(), CHUNK);
+        // The consumer's drop returns the buffer for the next event.
+        drop(first);
+        assert_eq!(pool.lock().unwrap().len(), 1);
+        let mut second = EventBuffer::take(&pool);
+        assert_eq!(second.get_mut().capacity(), CHUNK);
+        assert_eq!(pool.lock().unwrap().len(), 0);
+        // Two simultaneously live buffers dropped back-to-back pool both.
+        let a = EventBuffer::take(&pool);
+        let b = EventBuffer::take(&pool);
+        drop(a);
+        drop(b);
+        assert_eq!(pool.lock().unwrap().len(), EVENT_POOL_CAP);
+        // A surplus drop beyond the cap releases memory instead of pooling.
+        let c = EventBuffer::take(&pool);
+        let d = EventBuffer::take(&pool);
+        drop(c);
+        drop(d);
+        assert_eq!(pool.lock().unwrap().len(), EVENT_POOL_CAP);
+    }
+
     #[tokio::test(flavor = "current_thread")]
     async fn direct_routing_held_pane_credits_and_eof_after_exact_output() {
         timeout(TEST_TIMEOUT, async {
@@ -506,7 +579,7 @@ mod tests {
             match events.recv().await.unwrap() {
                 PtyEvent::Output { id, bytes, .. } => {
                     assert_eq!(id, 22);
-                    assert_eq!(bytes, b"other pane");
+                    assert_eq!(bytes.as_slice(), b"other pane");
                 }
                 _ => panic!("other pane data expected"),
             }
@@ -819,7 +892,7 @@ mod tests {
             match events.recv().await.unwrap() {
                 PtyEvent::Output { id, bytes, .. } => {
                     assert_eq!(id, 19);
-                    assert_eq!(bytes, b"pty output");
+                    assert_eq!(bytes.as_slice(), b"pty output");
                 }
                 _ => panic!("PTY output expected first"),
             }

@@ -7,7 +7,7 @@ use crate::tree::Id;
 pub enum PtyEvent {
     Output {
         id: Id,
-        bytes: Vec<u8>,
+        bytes: crate::transport::EventBuffer,
         _credit: OwnedSemaphorePermit,
     },
     Eof(Id),
