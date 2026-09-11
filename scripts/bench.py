@@ -396,6 +396,19 @@ def run_case(args, binaries, host_binary, variant, panes, trial, cpu):
             before = cpu_snapshot(cpu, measured)
             workload = output(2)
             after = cpu_snapshot(cpu, measured)
+            # Native's C host is the program under test; every other variant is
+            # measured together with that same outer host/emulator, so report
+            # the multiplexer's own CPU separately from the emulator's.
+            host_pid = host.process.pid
+            if variant == "native":
+                app_cpu, host_cpu = cpu_delta(before, after), 0.0
+            else:
+                def without(pid, samples):
+                    return {key: sample for key, sample in samples.items() if int(key) != pid}
+                def only(pid, samples):
+                    return {key: sample for key, sample in samples.items() if int(key) == pid}
+                app_cpu = cpu_delta(without(host_pid, before), without(host_pid, after))
+                host_cpu = cpu_delta(only(host_pid, before), only(host_pid, after))
             latencies = []
             for counter in range(1, args.keys + 1):
                 start = host.send(b"x")
@@ -407,6 +420,8 @@ def run_case(args, binaries, host_binary, variant, panes, trial, cpu):
                     "fixture_pids": sorted(children), "measured_pids": sorted(measured),
                     "command": command, "outer_rows": rows, "body_viewport": [100, 28],
                     **workload, "cpu_seconds": cpu_delta(before, after),
+                    "app_cpu_seconds": app_cpu, "host_cpu_seconds": host_cpu,
+                    "host_pid": host_pid,
                     "key_p95_seconds": percentile(latencies, .95),
                     "key_samples_seconds": latencies, "cpu_before": before, "cpu_after": after}
         except BaseException:
@@ -486,20 +501,57 @@ def normalized(samples, panes, variant, field):
     return statistics.median(ratios)
 
 
+LABELS = {"native": "Native", "tpane": "Us", "tmux": "tmux", "zellij": "Zellij"}
+
+
 def summary(report):
     print("\nAll costs relative to native (1.00×); higher = worse.")
     print("All tabs produce concurrently; native uses the same number of terminal instances.")
     variants = report["options"]["variants"]
-    labels = {"native": "Native", "tpane": "Us", "tmux": "tmux", "zellij": "Zellij"}
     for panes in report["options"]["panes"]:
         print(f"\n### {panes} {'tab' if panes == 1 else 'tabs'}\n")
-        print("| Metric | " + " | ".join(labels[v] for v in variants) + " |")
+        print("| Metric | " + " | ".join(LABELS[v] for v in variants) + " |")
         print("|---|" + "---:|" * len(variants))
         for label, field in (("Output time", "elapsed_seconds"),
                              ("CPU cost", "cpu_seconds"),
                              ("Key p95 (quiet)", "key_p95_seconds")):
             values = [normalized(report["samples"], panes, variant, field) for variant in variants]
             print(f"| {label} | " + " | ".join(f"{v:.2f}×" for v in values) + " |")
+
+
+def absolute(report):
+    """Median absolute cost per pane count; used when no native baseline was requested."""
+    print("\nAbsolute results (native absent from --variants; no ratios).")
+    print("All tabs produce concurrently; every tab must parse its full workload.")
+    variants = report["options"]["variants"]
+    metrics = (
+        ("Output time", lambda r: r["elapsed_seconds"], "{:.3f} s"),
+        ("Aggregate throughput", lambda r: r["payload_bytes"] / r["elapsed_seconds"] / 1048576,
+         "{:.1f} MiB/s"),
+        ("Per-pane throughput",
+         lambda r: r["payload_bytes_per_pane"] / r["elapsed_seconds"] / 1048576, "{:.2f} MiB/s"),
+        ("CPU cost (total)", lambda r: r["cpu_seconds"], "{:.3f} s"),
+        ("CPU cost (app)", lambda r: r["app_cpu_seconds"], "{:.3f} s"),
+        ("CPU cost (outer host)", lambda r: r["host_cpu_seconds"], "{:.3f} s"),
+        ("App CPU per MiB",
+         lambda r: r["app_cpu_seconds"] * 1000 / (r["payload_bytes"] / 1048576), "{:.2f} ms/MiB"),
+        ("App CPU / output time",
+         lambda r: 100 * r["app_cpu_seconds"] / r["elapsed_seconds"], "{:.1f}% of one core"),
+        ("Key p95 (quiet)", lambda r: r["key_p95_seconds"] * 1000, "{:.3f} ms"),
+    )
+    for panes in report["options"]["panes"]:
+        print(f"\n### {panes} {'tab' if panes == 1 else 'tabs'}\n")
+        print("| Metric | " + " | ".join(LABELS[v] for v in variants) + " |")
+        print("|---|" + "---:|" * len(variants))
+        for label, value_of, fmt in metrics:
+            values = []
+            for variant in variants:
+                samples = [row for row in report["samples"]
+                           if row["panes"] == panes and row["variant"] == variant]
+                if not samples:
+                    raise RuntimeError(f"No samples for {variant} at {panes} tabs")
+                values.append(statistics.median(value_of(row) for row in samples))
+            print(f"| {label} | " + " | ".join(fmt.format(value) for value in values) + " |")
 
 
 def arguments():
@@ -509,7 +561,8 @@ def arguments():
     parser.add_argument("--mib", type=float, default=32, help="changing-log payload PER TAB per output phase")
     parser.add_argument("--keys", type=int, default=30)
     parser.add_argument("--timeout", type=float, default=60)
-    parser.add_argument("--variants", default=",".join(VARIANTS), help="diagnostics only; must include native")
+    parser.add_argument("--variants", default=",".join(VARIANTS),
+                        help="comma-separated implementations; absolute results unless native is included")
     parser.add_argument("--output", type=Path, help="raw JSON (default: unique .tools/bench/run-*.json)")
     args = parser.parse_args()
     try:
@@ -519,9 +572,9 @@ def arguments():
     args.variants = args.variants.split(",")
     if not args.panes or min(args.panes) < 1 or len(set(args.panes)) != len(args.panes):
         parser.error("--panes must contain unique positive integers")
-    if ("native" not in args.variants or len(set(args.variants)) != len(args.variants)
+    if (not args.variants or len(set(args.variants)) != len(args.variants)
             or any(v not in VARIANTS for v in args.variants)):
-        parser.error(f"--variants must be unique names from {VARIANTS}, including native")
+        parser.error(f"--variants must be unique names from {VARIANTS}")
     args.variants = [v for v in VARIANTS if v in args.variants]
     if (min(args.trials, args.keys) < 1 or args.keys >= 100000000
             or not all(math.isfinite(v) and v > 0 for v in (args.mib, args.timeout))):
@@ -576,6 +629,14 @@ def main():
                              "workload": "All N producers start at a shared monotonic deadline, each emits --mib; their production intervals must overlap",
                              "completion": "Every child's ordered cursor-query response after DONE proves its terminal parsed all output, including hidden tabs; selected DONE also verified in host cells with synchronized output closed",
                              "ratios": "median of per-trial cost/native ratios at each pane count; higher is worse",
+                             "absolute": "median of per-trial absolute output/CPU/latency when native is not in --variants; app CPU excludes the shared outer C host",
+                             "cpu_split": "app is the multiplexer processes; outer host is the shared C PTY reader/parser; native reports its C host as app",
+                             "app_cpu": "tpane/tmux/zellij client+server processes only, excluding the outer C host; native: its whole C host",
+                             "host_cpu": "the shared outer C host/emulator process; zero for native",
+                             "throughput": "aggregate payload MiB over the elapsed output phase, all tabs; per-pane divides by pane count",
+                             "app_cpu_per_mib": "app CPU milliseconds per MiB of aggregate payload",
+                             "app_cpu_fraction": "app CPU seconds over elapsed output seconds, as percent of one core",
+                             "absolute_units": {"output": "s", "throughput": "MiB/s", "cpu": "s", "key_p95": "ms"},
                              "warmup": "one full output workload per fresh case, excluded from measurements",
                              "geometry": "100x28 host and child viewport for every variant and pane count; no persistent bars",
                              "tpane_navigation": "Ctrl+Space (NUL), n creates/selects each sibling and dismisses explorer; final leaf remains selected",
@@ -611,10 +672,18 @@ def main():
                 if digest(path) != hashes[name]["sha256"]:
                     raise RuntimeError(f"{name} changed during benchmark; results invalid")
             # Validate every denominator before marking a report complete.
-            for panes in args.panes:
-                for variant in args.variants:
-                    for field in ("elapsed_seconds", "cpu_seconds", "key_p95_seconds"):
-                        normalized(report["samples"], panes, variant, field)
+            if "native" in args.variants:
+                for panes in args.panes:
+                    for variant in args.variants:
+                        for field in ("elapsed_seconds", "cpu_seconds", "key_p95_seconds"):
+                            normalized(report["samples"], panes, variant, field)
+            else:
+                for row in report["samples"]:
+                    for field in ("elapsed_seconds", "app_cpu_seconds", "host_cpu_seconds",
+                                  "key_p95_seconds"):
+                        value = row[field]
+                        if not math.isfinite(value) or value < 0:
+                            raise RuntimeError(f"Unmeasurable {field} in absolute mode")
             report["status"] = "complete"
         except BaseException as error:
             report["status"] = "failed"
@@ -624,7 +693,10 @@ def main():
         finally:
             signal.signal(signal.SIGTERM, previous)
         save()
-        summary(report)
+        if "native" in args.variants:
+            summary(report)
+        else:
+            absolute(report)
         print(f"\nRaw results: {args.output}")
 
 

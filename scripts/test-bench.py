@@ -84,10 +84,16 @@ class ArgumentsTests(unittest.TestCase):
         self.assertEqual(args.output_bytes, 1)
         self.assertEqual(args.variants, ["native"])
 
+    def test_pure_tpane_without_native_is_valid(self):
+        args = self.parse("--variants", "tpane")
+        self.assertEqual(args.variants, ["tpane"])
+        args = self.parse("--variants", "zellij,tpane")
+        self.assertEqual(args.variants, ["tpane", "zellij"])
+
     def test_rejects_invalid_cli_values(self):
         invalid = {
             "--panes": ("", "0", "-1", "1,1", "1,", "1,,2", "one", "1.5"),
-            "--variants": ("", "tmux", "native,native", "native,unknown", "native,", "Native"),
+            "--variants": ("", "native,native", "native,unknown", "native,", "Native"),
             "--trials": ("0", "-1", "1.5", "nan"),
             "--keys": ("0", "-1", "100000000", "1.5"),
             "--mib": ("0", "-1", "nan", "inf", "-inf", "1e-10", "1e308"),
@@ -182,6 +188,33 @@ class NormalizationTests(unittest.TestCase):
         self.assertEqual(text.count("|---|---:|---:|"), 2)
         for metric in ("Output time", "CPU cost", "Key p95 (quiet)"):
             self.assertEqual(text.count(f"| {metric} | 1.00× | 2.00× |"), 2)
+
+    def test_absolute_summary_reports_absolute_metrics_per_pane_count(self):
+        samples = []
+        for panes, seconds in ((1, 0.25), (8, 2.0)):
+            for trial, factor in ((1, 1.0), (2, 2.0)):
+                samples.append({"panes": panes, "trial": trial, "variant": "tpane",
+                                "elapsed_seconds": seconds * factor,
+                                "payload_bytes": panes * 1024 * 1024,
+                                "payload_bytes_per_pane": 1024 * 1024,
+                                "cpu_seconds": seconds * factor * 1.5,
+                                "app_cpu_seconds": seconds * factor * 1.2,
+                                "host_cpu_seconds": seconds * factor * 0.2,
+                                "key_p95_seconds": 0.0002 * factor})
+        report = {"options": {"panes": [1, 8], "variants": ["tpane"]}, "samples": samples}
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            bench.absolute(report)
+        text = output.getvalue()
+        self.assertIn("Absolute results", text)
+        self.assertIn("| Metric | Us |\n", text)
+        self.assertIn("| Output time | 0.375 s |\n", text)   # median of 0.25, 0.5
+        self.assertIn("| CPU cost (app) | 0.450 s |\n", text)  # median of 0.3, 0.6
+        self.assertIn("| CPU cost (outer host) | 0.075 s |\n", text)  # median of 0.05, 0.1
+        self.assertIn("| Key p95 (quiet) | 0.300 ms |\n", text)  # median of 0.2, 0.4
+        self.assertIn("Aggregate throughput", text)
+        self.assertIn("MiB/s", text)
+        self.assertIn("ms/MiB", text)
+        self.assertIn("of one core", text)
 
     def test_summary_labels_all_four_implementations(self):
         samples = self.samples + [{**row, "variant": variant}
@@ -584,6 +617,10 @@ class NativeCaseTests(unittest.TestCase):
         self.assertEqual(result["fixture_pids"], [100, 101, 102])
         self.assertEqual(result["payload_bytes"], 3 * 4096)
         self.assertAlmostEqual(result["cpu_seconds"], .003)
+        self.assertEqual(result["host_pid"], 400)
+        # Native's C host is the program under test, not an outer emulator.
+        self.assertAlmostEqual(result["app_cpu_seconds"], .003)
+        self.assertEqual(result["host_cpu_seconds"], 0.0)
         case.host.close.assert_called_once_with()
         case.socket_factory.return_value.close.assert_called_once_with()
         for process in case.processes:

@@ -54,9 +54,16 @@ Promotion is an architectural tradeoff, not a claim of universal speedup: measur
 ```sh
 brew install just tmux zellij   # if not already installed
 just bench
+# Absolute tpane-only numbers (no native baseline, no ratios):
+just bench --variants tpane
 # Short correctness smoke run (not useful performance evidence):
 just bench --panes 1,3 --trials 1 --mib 1 --keys 3
 ```
+
+With `native` in `--variants` the summary reports costs relative to native. Without
+it, the summary reports absolute output time, aggregate/per-pane throughput, CPU
+split between tpane and the shared outer C host, app CPU per MiB, app CPU as a
+fraction of one core, and quiet key p95.
 
 Builds release tpane and a **C host linked directly to the same native libghostty
 static library**, without Rust bindings. Compares **native / tpane / tmux / zellij**
