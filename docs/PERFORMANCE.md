@@ -74,7 +74,44 @@ Adjacent three-trial `just bench --variants tpane` runs on the same machine (32 
 | 8 | 0.909 → 0.852 s | 281.6 → 300.6 MiB/s | 1.574 → 1.530 s | 6.15 → 5.98 ms/MiB | 0.175 → 0.162 s |
 | 24 | 3.424 → 2.817 s | 224.3 → 272.6 MiB/s | 5.048 → 4.614 s | 6.57 → 6.01 ms/MiB | 0.370 → 0.272 s |
 
-The 24-tab case improves output time about **18%** and app CPU about **8.6%**; eight tabs improve modestly; one tab is flat (little to coalesce, one extra `EAGAIN` probe per event). Per-thread libproc counters from sampled runs at 24 tabs: unix syscalls rose from 1381 to 2493 per MiB (the probes), while io-worker CPU fell from 3139 to 2697 ms; context switches stayed in the same range (158 → 190 per MiB). In the same-session `native,tpane` comparison, 24-tab tpane/native CPU was 2.04× and output time 1.13× (original comparison: 2.24× and 1.36×, different load window). Quiet key p95 moved in both directions within run-to-run machine noise (native-relative key p95 was 1.01–1.29×). Publication granularity is therefore a demonstrated, if modest, lever; renderer FFI cost remains the larger visible-workload target.
+The 24-tab case improves output time about **18%** and app CPU about **8.6%**; eight tabs improve modestly; one tab is flat (little to coalesce, one extra `EAGAIN` probe per event). Per-thread libproc counters from sampled runs at 24 tabs: unix syscalls rose from 1381 to 2493 per MiB (the probes), while io-worker CPU fell from 3139 to 2697 ms; context switches stayed in the same range (158 → 190 per MiB). In the same-session `native,tpane` comparison, 24-tab tpane/native CPU was 2.04× and output time 1.13× (original comparison: 2.24× and 1.36×, different load window). Quiet key p95 moved in both directions within run-to-run machine noise (native-relative key p95 was 1.01–1.29×). Publication granularity is therefore a demonstrated, if modest, lever.
+
+## Renderer fast paths (current checkout)
+
+`render.rs` now reads one row-level styled/grapheme/selection state per dirty row instead of querying style, fg, bg, and selection for every cell. Unstyled rows share one frame-level base style; styled rows cache the full style by style id; selection applies one row-local range; grapheme-free rows encode the raw codepoint directly; wide spacer tails are inferred from the preceding wide cell; and the pen style carries across absolutely positioned rows, so a repeated style is emitted once per frame instead of once per row. A test-only copy of the previous renderer remains for differential tests, and `render::tests::microbench_render_paths` times full repaints.
+
+Measured repaint cost (release, unperturbed 100x28 full frame): **25.6 us and 3027 bytes versus 44.3 us and 3135 bytes** for the previous renderer, a **1.73x** per-frame improvement; a busier re-run measured 1.6x.
+
+Interactive workloads gain directly, because frames there are key-driven rather than flood-driven. `scripts/benchmark-programs.py` runs real programs over a raw PTY host (no outer emulator); its `nvim-scroll` scenario drives a scripted nvim pane (20,000-line file, 600 single-line scroll keys at 8 ms think time). Three interleaved trials per binary measured (medians):
+
+| Metric | Previous | Current |
+|---|---:|---:|
+| tpane CPU (600 keys) | 265.2 ms | **218.8 ms** (−17.5%) |
+| Main-thread CPU | 149.9 ms | **110.8 ms** (−26.1%) |
+| io-thread CPU | 97.8 ms | 91.9 ms |
+| Frames / host bytes | 1188 / 4.91 MB | 1190 / 4.91 MB |
+| Key latency mean / p95 | 0.358 / 0.490 ms | 0.337 / 0.447 ms |
+
+The same suite covers thirteen more program shapes. Three interleaved trials per binary, medians; the direction is consistent, but scenarios whose whole run costs only milliseconds of tpane CPU sit at the noise floor. Those three (`fzf-query`, `lazygit-nav`, `htop-nav`) were then scaled up (500,000-line fzf list, 80-commit lazygit repository driven through diff views, longer htop window) and re-measured with five interleaved trials; their medians are reported from that second run and remain unresolved rather than claimed as changes:
+
+| Scenario | Main-thread CPU | Δ | Host bytes |
+|---|---:|---:|---:|
+| nvim-scroll | 149.9 → 110.8 ms | −26.1% | 0% |
+| nvim-typing | 5.1 → 4.0 ms | −21.6% | −6% |
+| less-page | 30.9 → 23.2 ms | −24.9% | −5% |
+| tail-f | 286.6 → 196.3 ms | −31.5% | −4% |
+| progress-bar | 80.2 → 63.4 ms | −20.9% | 0% |
+| git-log-flood | 43.2 → 35.6 ms | −17.6% | +7% |
+| style-churn | 91.6 → 80.7 ms | −11.9% | +10% |
+| tmux-nested | 10.1 → 9.1 ms | −9.9% | −1% |
+| wide-emoji | 24.0 → 24.4 ms | +1.7% | +20% |
+| cat-flood | 220.3 → 217.0 ms | −1.5% | +32% |
+| seq-flood | 1991.8 → 1989.7 ms | −0.1% | +31% |
+| fzf-query | 6.8 → 7.0 ms | noise | +2% |
+| lazygit-nav | 16.7 → 15.8 ms | noise | +2% |
+| htop-nav | 10.5 → 9.0 ms | noise | −8% |
+
+The synthetic flood benchmark and the suite's own flood scenarios trade the other way at some sizes. Interleaved eight-trial `just bench --variants tpane` runs (32 MiB/tab) measured 1 tab 0.259 → 0.248 s output and 0.397 → 0.378 s app CPU; 8 tabs 0.834 → 0.868 s and 1.511 → 1.541 s; 24 tabs flat (2.696 → 2.704 s). A diagnostic build of the benchmark host that counts host input shows why: faster draws let the render-priority loop repaint the same rows more often under sustained flood, so a 16 MiB two-case run emitted **5192 frames and 15.4 MB instead of 3630 frames and 11.2 MB**, and outer-host CPU rose 19–49%; the suite's `cat-flood` and `seq-flood` show the same +32% host bytes. Frame granularity, not per-cell query cost, sets flood cost. The fast paths are kept for the interactive win with that trade-off recorded rather than presented as a universal speedup.
 
 ## Native / tpane / tmux / zellij
 
@@ -190,6 +227,8 @@ python3 scripts/benchmark-busy.py --binary target/release/tpane \
   --panes 8 --busy 4 --trials 3 --seconds 5 --output busy8.json
 python3 scripts/benchmark-busy.py --binary target/release/tpane \
   --panes 24 --busy 8 --trials 3 --seconds 5 --output busy24.json
+python3 scripts/benchmark-programs.py --binary target/release/tpane \
+  --trials 3 --output programs.json
 python3 scripts/summarize-benchmark.py quiet.json visible.json
 python3 scripts/summarize-busy.py busy8.json busy24.json
 ```

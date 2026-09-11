@@ -31,6 +31,7 @@ Process exit uses macOS kqueue notifications. Per-pane drain deadlines and UI no
 
 - Hidden terminals consume output and update independent state without repainting the selected terminal.
 - Switching tabs forces a complete redraw even if the selected terminal's cached render state was clean.
+- Dirty rows repaint from row-level flags: one styled/grapheme/selection query per row picks between a shared base style, a style-id cache, and row-local selection ranges, instead of reading style, fg, bg, and selection state for every cell. Grapheme-free rows encode the raw codepoint directly, and wide spacer tails are inferred from the preceding wide cell. Because rows are absolutely positioned, the pen style carries across rows, so a repeated style is emitted once per frame rather than once per row. A test-only copy of the previous renderer remains for differential tests.
 - `output.rs` asynchronously writes ordered frames, handling partial writes and WouldBlock. The coordinator permits **one incremental frame in flight** and draws pending visible changes after its completion.
 - No frame-rate cap, delayed-flush timer, or dropping/replacing accepted incremental frames. An empty draw does not count as a presented frame.
 - Slow host output applies backpressure while input, signals, and I/O tasks can still progress. Shutdown attempts an ordered terminal reset with a bounded wait, then falls back to best-effort restoration if the host remains blocked.

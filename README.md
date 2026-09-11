@@ -65,6 +65,28 @@ it, the summary reports absolute output time, aggregate/per-pane throughput, CPU
 split between tpane and the shared outer C host, app CPU per MiB, app CPU as a
 fraction of one core, and quiet key p95.
 
+### Real-program workloads
+
+`just bench` is a synthetic flood. Real terminal programs have very different
+shapes: full-screen repaints, per-keystroke redraws, incremental log appends,
+progress bars, color churn, and wide text. `scripts/benchmark-programs.py`
+runs a scripted set of real programs over a raw PTY host and reports tpane CPU
+(task and per thread), host bytes, frames, per-key frame latency, and wall time:
+
+```sh
+python3 scripts/benchmark-programs.py --binary target/release/tpane \
+    --trials 3 --output programs.json
+python3 scripts/benchmark-programs.py --binary old/tpane --binary new/tpane \
+    --scenarios nvim-scroll,lazygit-nav,tail-f --trials 3
+```
+
+Scenarios: `cat-flood`, `seq-flood`, `less-page`, `nvim-scroll`, `nvim-typing`,
+`fzf-query`, `lazygit-nav`, `htop-nav`, `tail-f`, `progress-bar`,
+`style-churn`, `wide-emoji`, `git-log-flood`, `tmux-nested`. Programs are
+external and unpinned: the JSON records their versions, and binaries should
+only be compared on the same machine, same program versions, and interleaved
+trials. See [PERFORMANCE.md](docs/PERFORMANCE.md) for measured results.
+
 Builds release tpane and a **C host linked directly to the same native libghostty
 static library**, without Rust bindings. Compares **native / tpane / tmux / zellij**
 with **every tab producing output concurrently**. Native uses the same number
