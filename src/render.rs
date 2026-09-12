@@ -17,6 +17,7 @@ pub struct Renderer {
     buffer: Vec<u8>,
     // Reused grapheme scratch space: cleared per cell, allocated once.
     text: String,
+    cursor: Option<(u16, u32, u8)>,
 }
 
 impl Renderer {
@@ -27,6 +28,7 @@ impl Renderer {
             cells: CellIterator::new()?,
             buffer: Vec::new(),
             text: String::new(),
+            cursor: None,
         })
     }
 
@@ -58,7 +60,27 @@ impl Renderer {
         } else {
             snapshot.dirty()?
         };
-        if dirty == Dirty::Clean {
+        // Ghostty's cell dirty flags do not include cursor-only changes.
+        // TUIs often advance over blank prompt cells instead of writing spaces.
+        let cursor = if snapshot.cursor_visible()? {
+            if let Some(position) = snapshot.cursor_viewport()? {
+                let base = match snapshot.cursor_visual_style()? {
+                    CursorVisualStyle::Underline => 3,
+                    CursorVisualStyle::Bar => 5,
+                    _ => 1,
+                };
+                Some((
+                    position.x,
+                    u32::from(top) + u32::from(position.y),
+                    base + u8::from(!snapshot.cursor_blinking()?),
+                ))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if dirty == Dirty::Clean && cursor == self.cursor {
             return Ok(());
         }
         self.buffer.clear();
@@ -196,6 +218,7 @@ impl Renderer {
         // App commits synchronized output only after composing its overlay.
         output.write_all(&self.buffer)?;
         output.flush()?;
+        self.cursor = cursor;
         snapshot.set_dirty(Dirty::Clean)?;
         Ok(())
     }
@@ -395,6 +418,42 @@ mod tests {
     }
 
     #[test]
+    fn renders_cursor_only_prompt_updates() {
+        let mut source = terminal(20, 2);
+        let mut host = terminal(20, 2);
+        host.vt_write(b"\x1b[?7l");
+        let mut renderer = Renderer::new().unwrap();
+        source.vt_write(b"> ");
+        let mut output = Vec::new();
+        renderer.draw(&source, &mut output).unwrap();
+        host.vt_write(&output);
+
+        // TUIs can represent trailing spaces by moving across blank cells.
+        for update in [
+            b"\x1b[C".as_slice(),
+            b"\x1b[C",
+            b"\x1b[D",
+            b"\x1b[?25l",
+            b"\x1b[?25h",
+            b"\x1b[6 q",
+        ] {
+            source.vt_write(update);
+            output.clear();
+            renderer.draw(&source, &mut output).unwrap();
+            host.vt_write(&output);
+            assert!(!output.is_empty());
+            assert_eq!(host.cursor_x().unwrap(), source.cursor_x().unwrap());
+            assert_eq!(
+                host.mode(Mode::CURSOR_VISIBLE).unwrap(),
+                source.mode(Mode::CURSOR_VISIBLE).unwrap(),
+            );
+        }
+        output.clear();
+        renderer.draw(&source, &mut output).unwrap();
+        assert!(output.is_empty());
+    }
+
+    #[test]
     fn selection_inverts_only_the_selected_cells() {
         let mut source = terminal(8, 2);
         source.vt_write(b"abcdefgh\r\nijklmnop");
@@ -588,16 +647,16 @@ mod tests {
             grid_snapshot(&hosts[1], COLS, ROWS),
             "forced redraw"
         );
-        // A clean frame produces nothing from either implementation.
+        // A clean frame at the same offset produces nothing from either implementation.
         for which in 0..2 {
             frames[which].clear();
             if which == 0 {
                 renderers[which]
-                    .draw_at(&sources[which], &mut frames[which], 0, false)
+                    .draw_at(&sources[which], &mut frames[which], 1, false)
                     .unwrap();
             } else {
                 renderers[which]
-                    .draw_reference_at(&sources[which], &mut frames[which], 0, false)
+                    .draw_reference_at(&sources[which], &mut frames[which], 1, false)
                     .unwrap();
             }
             assert!(frames[which].is_empty(), "clean frame {which}");
