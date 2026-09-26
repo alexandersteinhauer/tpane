@@ -660,7 +660,7 @@ mod tests {
                 1
             );
             assert!(bytes.ends_with(commit));
-            assert_eq!(String::from_utf8_lossy(&bytes).contains("Sessions"), open);
+            assert_eq!(String::from_utf8_lossy(&bytes).contains('›'), open);
             host.vt_write(&bytes);
         }
         use libghostty_vt::terminal::{Point, PointCoordinate};

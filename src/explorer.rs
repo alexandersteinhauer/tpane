@@ -81,13 +81,21 @@ impl Explorer {
             }
         }
         let mut entries = Vec::new();
-        if let Some(root) = &tree.root {
-            let number = if matches!(root, Node::Terminal(_)) {
-                "1"
-            } else {
-                ""
-            };
-            visit(root, None, 0, number.into(), &self.collapsed, &mut entries);
+        match &tree.root {
+            Some(Node::Tabs { children, .. }) => {
+                for (index, child) in children.iter().enumerate() {
+                    visit(
+                        child,
+                        None,
+                        0,
+                        (index + 1).to_string(),
+                        &self.collapsed,
+                        &mut entries,
+                    );
+                }
+            }
+            Some(root) => visit(root, None, 0, "1".into(), &self.collapsed, &mut entries),
+            None => {}
         }
         entries
     }
@@ -209,7 +217,10 @@ impl Explorer {
         let desired_height = if confirm {
             5
         } else {
-            entries.len().saturating_add(4).clamp(5, 24) as u16
+            entries
+                .len()
+                .saturating_add(usize::from(self.rename.is_some()) + 4)
+                .clamp(5, 24) as u16
         };
         let height = rows.min(desired_height);
         let left = (cols - width) / 2;
@@ -219,6 +230,9 @@ impl Explorer {
         let inset = usize::from(bordered);
         let inner_width = usize::from(width) - 2 * inset;
         let inner_height = usize::from(height) - 2 * inset;
+        let padding_y = usize::from(!confirm && bordered && inner_height >= 3);
+        let padding_x = usize::from(!confirm && bordered && inner_width >= 3);
+        let content_width = inner_width - 2 * padding_x;
         let mut lines = vec![(String::new(), false); inner_height];
         if confirm {
             lines[(inner_height - 1) / 2].0 = "Close running programs?".into();
@@ -227,12 +241,7 @@ impl Explorer {
                     "↵ close · esc cancel".into();
             }
         } else {
-            let header = usize::from(inner_height >= 3);
-            let footer = usize::from(inner_height >= 2);
-            let capacity = inner_height - header - footer;
-            if header != 0 {
-                lines[0].0 = " Sessions".into();
-            }
+            let capacity = inner_height - 2 * padding_y - usize::from(self.rename.is_some());
             let start = window_start(selected.unwrap_or(0), entries.len(), capacity);
             for (line, index) in (start..entries.len()).take(capacity).enumerate() {
                 let entry = &entries[index];
@@ -248,7 +257,7 @@ impl Explorer {
                 };
                 // Cap indentation so pathological depth cannot allocate a huge line.
                 let indent = " ".repeat(entry.depth.saturating_mul(2).min(inner_width / 3));
-                lines[header + line] = (
+                lines[padding_y + line] = (
                     format!(
                         " {} {indent}{branch} {}{active}",
                         if selected == Some(index) { '›' } else { ' ' },
@@ -258,20 +267,13 @@ impl Explorer {
                 );
             }
             if entries.is_empty() && capacity > 0 {
-                lines[header].0 = "No sessions".into();
-            }
-            if footer != 0 {
-                lines[inner_height - 1].0 =
-                    " ↑↓ move  ←→ fold  ↵ open  n/N new  r rename  d close  esc back".into();
+                lines[padding_y].0 = "No sessions".into();
             }
             if let Some((_, text)) = &self.rename {
                 // Tail keeps the edit position visible without splitting graphemes.
-                if header != 0 {
-                    lines[0].0 = " Sessions · name · ↵ save · esc cancel".into();
-                }
                 let prompt = " Name: ";
-                let room = inner_width.saturating_sub(prompt.width() + 1);
-                lines[inner_height - 1].0 = format!("{prompt}{}▏", tail(text, room));
+                let room = content_width.saturating_sub(prompt.width() + 1);
+                lines[inner_height - padding_y - 1].0 = format!("{prompt}{}▏", tail(text, room));
             }
         }
         queue!(output, SetAttribute(Attribute::Reset))?;
@@ -284,9 +286,9 @@ impl Explorer {
             )?;
             if bordered && (row == 0 || row + 1 == usize::from(height)) {
                 let (left, right) = if row == 0 {
-                    ('╭', '╮')
+                    ('┌', '┐')
                 } else {
-                    ('╰', '╯')
+                    ('└', '┘')
                 };
                 queue!(
                     output,
@@ -298,7 +300,11 @@ impl Explorer {
             if bordered {
                 queue!(output, Print("│"))?;
             }
-            queue!(output, SetForegroundColor(Color::Grey))?;
+            queue!(
+                output,
+                Print(" ".repeat(padding_x)),
+                SetForegroundColor(Color::Grey)
+            )?;
             if *highlight {
                 queue!(
                     output,
@@ -308,10 +314,11 @@ impl Explorer {
             }
             queue!(
                 output,
-                Print(fit(text, inner_width)),
+                Print(fit(text, content_width)),
                 SetForegroundColor(Color::DarkGrey),
                 SetBackgroundColor(Color::Reset)
             )?;
+            queue!(output, Print(" ".repeat(padding_x)))?;
             if bordered {
                 queue!(output, Print("│"))?;
             }
@@ -321,11 +328,9 @@ impl Explorer {
 }
 
 fn label(entry: &Entry<'_>, names: &BTreeMap<Id, String>) -> String {
-    match (entry.number.as_str(), names.get(&entry.node.id())) {
-        ("", Some(name)) => name.clone(),
-        ("", None) => "All sessions".into(),
-        (number, Some(name)) => format!("{number} {name}"),
-        (number, None) => number.into(),
+    match names.get(&entry.node.id()) {
+        Some(name) => format!("{} {name}", entry.number),
+        None => entry.number.clone(),
     }
 }
 
@@ -415,16 +420,16 @@ mod tests {
                 .iter()
                 .map(|e| e.node.id())
                 .collect::<Vec<_>>(),
-            vec![10, 1, 20, 2, 3]
+            vec![1, 20, 2, 3]
         );
         key(&mut explorer, &tree, KeyCode::Home);
-        for id in [10, 1, 20, 2, 3, 3] {
+        for id in [1, 20, 2, 3, 3] {
             assert_eq!(explorer.selected(&tree), Some(id));
             key(&mut explorer, &tree, KeyCode::Down);
         }
         key(&mut explorer, &tree, KeyCode::Home);
         key(&mut explorer, &tree, KeyCode::Up);
-        assert_eq!(explorer.selected(&tree), Some(10));
+        assert_eq!(explorer.selected(&tree), Some(1));
     }
 
     #[test]
@@ -434,17 +439,17 @@ mod tests {
         key(&mut explorer, &tree, KeyCode::Left);
         assert_eq!(explorer.selected(&tree), Some(20));
         key(&mut explorer, &tree, KeyCode::Left);
-        assert_eq!(explorer.entries(&tree).len(), 3);
+        assert_eq!(explorer.entries(&tree).len(), 2);
         key(&mut explorer, &tree, KeyCode::Right);
-        assert_eq!(explorer.entries(&tree).len(), 5);
+        assert_eq!(explorer.entries(&tree).len(), 4);
         assert_eq!(explorer.selected(&tree), Some(20));
         key(&mut explorer, &tree, KeyCode::Right);
         assert_eq!(explorer.selected(&tree), Some(2));
         key(&mut explorer, &tree, KeyCode::Home);
         key(&mut explorer, &tree, KeyCode::Left);
-        assert_eq!(explorer.entries(&tree).len(), 1);
+        assert_eq!(explorer.entries(&tree).len(), 4);
         key(&mut explorer, &tree, KeyCode::Left);
-        assert_eq!(explorer.selected(&tree), Some(10));
+        assert_eq!(explorer.selected(&tree), Some(1));
     }
 
     #[test]
@@ -596,11 +601,11 @@ mod tests {
             (20, "Projects".into()),
             (2, "shell".into()),
         ]);
-        assert_eq!(label(&entries[0], &names), "renamed root");
-        assert_eq!(label(&entries[2], &names), "2 Projects");
-        assert_eq!(label(&entries[3], &names), "2.1 shell");
-        assert_eq!(label(&entries[2], &BTreeMap::new()), "2");
-        assert_eq!(entries[3].number, "2.1");
+        assert_eq!(label(&entries[0], &names), "1");
+        assert_eq!(label(&entries[1], &names), "2 Projects");
+        assert_eq!(label(&entries[2], &names), "2.1 shell");
+        assert_eq!(label(&entries[1], &BTreeMap::new()), "2");
+        assert_eq!(entries[2].number, "2.1");
         assert_eq!(entries.last().unwrap().number, "10");
         assert_eq!(
             label(
@@ -677,7 +682,7 @@ mod tests {
                     assert!(output.starts_with(b"\x1b[?25l"));
                     let printed: usize = runs(&output).iter().map(|run| run.width()).sum();
                     let width = cols.min(if confirm { 52 } else { 78 });
-                    let height = rows.min(if confirm { 5 } else { 9 });
+                    let height = rows.min(if confirm { 5 } else { 8 });
                     assert_eq!(printed, usize::from(width) * usize::from(height));
                 }
             }
@@ -687,7 +692,11 @@ mod tests {
             .draw(&mut output, u16::MAX, u16::MAX, &tree, &names, false)
             .unwrap();
         assert!(output.len() < 3000);
-        assert!(runs(&output).join("").contains("bad�[2J��雪"));
+        let printed = runs(&output).join("");
+        assert!(printed.contains("bad�[2J��雪"));
+        for hidden in ["Sessions", "All sessions", "↑↓ move", "esc back", "╭", "╯"] {
+            assert!(!printed.contains(hidden), "unexpected chrome: {hidden}");
+        }
     }
 
     #[test]
@@ -745,7 +754,7 @@ mod tests {
             .iter()
             .map(|entry| label(entry, &BTreeMap::new()))
             .collect();
-        assert_eq!(labels, ["All sessions", "1", "1.1", "1.2"]);
+        assert_eq!(labels, ["1", "1.1", "1.2"]);
     }
 
     #[test]

@@ -19,23 +19,15 @@ use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, SlavePty, native_p
 const TIMEOUT: Duration = Duration::from_secs(8);
 const HOST_TEXT: &str = "original host screen";
 // UI copy, deliberately independent of working directories and internal IDs.
-const EXPLORER_TITLE: &str = "Sessions";
+const EXPLORER_TITLE: &str = "›";
 const CLOSE_PROMPT: &str = "Close running programs?";
 
 fn explorer_visible(screen: &str) -> bool {
-    // Host PTY reads may split a repaint after the title or selected row. Wait
-    // for both complete borders before taking a screenshot of the dialog.
+    // PTY reads can split a frame; wait for the complete bottom border.
     screen.contains(EXPLORER_TITLE)
         && screen.lines().any(|line| {
-            line.split_once('╭').is_some_and(|(_, rest)| {
-                rest.split_once('╮').is_some_and(|(border, _)| {
-                    !border.is_empty() && border.chars().all(|c| c == '─')
-                })
-            })
-        })
-        && screen.lines().any(|line| {
-            line.split_once('╰').is_some_and(|(_, rest)| {
-                rest.split_once('╯').is_some_and(|(border, _)| {
+            line.split_once('└').is_some_and(|(_, rest)| {
+                rest.split_once('┘').is_some_and(|(border, _)| {
                     !border.is_empty() && border.chars().all(|c| c == '─')
                 })
             })
@@ -47,53 +39,55 @@ fn explorer_row(line: &str) -> Option<&str> {
 }
 
 fn selected_active_leaf(screen: &str) -> bool {
-    screen
-        .lines()
-        .filter_map(explorer_row)
-        .any(|row| row.starts_with('›') && row.ends_with(" ●"))
+    screen.lines().any(|line| {
+        line.split_once('›')
+            .is_some_and(|(_, row)| row.contains(" ●"))
+    })
 }
 
-// Snapshot actual cells, including rounded borders and numbered-only default
-// labels. Normalize row indentation, but retain every marker and label token.
+// Snapshot the padded list and square-cornered border.
 fn assert_explorer_snapshot(screen: &str, cols: u16, rows: u16, entries: &[&str]) {
     let width = usize::from(cols.min(78));
     let height = usize::from(rows).min((entries.len() + 4).clamp(5, 24));
     let left = (usize::from(cols) - width) / 2;
     let top = (usize::from(rows) - height) / 2;
-    let rectangle: Vec<String> = screen
+    let actual: Vec<String> = screen
         .lines()
-        .skip(top)
-        .take(height)
-        .map(|line| line.chars().skip(left).take(width).collect())
-        .collect();
-    assert_eq!(rectangle.len(), height, "{screen}");
-    assert_eq!(rectangle[0], format!("╭{}╮", "─".repeat(width - 2)));
-    assert_eq!(
-        rectangle[height - 1],
-        format!("╰{}╯", "─".repeat(width - 2))
-    );
-    for line in &rectangle[1..height - 1] {
-        assert_eq!(line.chars().count(), width, "{screen}");
-        assert!(line.starts_with('│') && line.ends_with('│'), "{screen}");
-    }
-    assert_eq!(explorer_row(&rectangle[1]).unwrap().trim(), EXPLORER_TITLE);
-    let actual: Vec<String> = rectangle[2..height - 2]
-        .iter()
+        .skip(top + 2)
+        .take(height - 4)
         .map(|line| {
-            explorer_row(line)
-                .unwrap()
+            line.chars()
+                .skip(left + 2)
+                .take(width - 4)
+                .collect::<String>()
                 .split_whitespace()
                 .collect::<Vec<_>>()
                 .join(" ")
         })
         .collect();
+    let border = |row: usize| {
+        screen
+            .lines()
+            .nth(row)
+            .unwrap()
+            .chars()
+            .skip(left)
+            .take(width)
+            .collect::<String>()
+    };
+    assert_eq!(border(top), format!("┌{}┐", "─".repeat(width - 2)));
+    assert_eq!(
+        border(top + height - 1),
+        format!("└{}┘", "─".repeat(width - 2))
+    );
+    assert_eq!(border(top + 1), format!("│{}│", " ".repeat(width - 2)));
+    assert_eq!(
+        border(top + height - 2),
+        format!("│{}│", " ".repeat(width - 2))
+    );
     assert_eq!(actual, entries, "{screen}");
-    let footer = explorer_row(&rectangle[height - 2]).unwrap();
-    for arrow in ['↑', '↓', '←', '→'] {
-        assert!(
-            footer.contains(arrow),
-            "missing {arrow} in footer: {footer}"
-        );
+    for hidden in ["Sessions", "All sessions", "↑↓ move", "esc back", "╭", "╯"] {
+        assert!(!screen.contains(hidden), "unexpected chrome: {hidden}");
     }
 }
 
@@ -292,14 +286,14 @@ impl Host {
     // Address fixture nodes structurally, never by generated names. These
     // fixtures have a leaf first child and only leaves before the requested
     // sibling (Down therefore cannot enter an intervening subtree).
-    // Left clamps at the root and collapses groups; Right expands, then enters.
+    // Home selects the first top-level session; nested groups remain navigable.
     fn explore_path(&mut self, path: &[usize]) {
         self.explorer();
-        for _ in 0..8 {
-            self.send(b"\x1b[D");
-        }
-        for &index in path {
-            self.send(b"\x1b[C\x1b[C");
+        self.send(b"\x1b[H");
+        for (depth, &index) in path.iter().enumerate() {
+            if depth > 0 {
+                self.send(b"\x1b[D\x1b[C\x1b[C");
+            }
             for _ in 0..index {
                 self.send(b"\x1b[B");
             }
@@ -908,7 +902,7 @@ fn explorer_open_cancel_and_confirm_preserve_selection_and_full_viewport() {
             &overlay,
             host.cols,
             host.rows,
-            &["▾ All sessions", "1", "▾ 2", "2.1", "› 2.2 ●"],
+            &["1", "▾ 2", "2.1", "› 2.2 ●"],
         );
         host.send(b"\x1b[A");
         host.until("Up changes the explorer cursor, not the active leaf", |s| {
@@ -1091,7 +1085,7 @@ finally:
 }
 
 #[test]
-fn nested_sibling_rename_and_root_close_are_completed_modal_actions() {
+fn nested_sibling_rename_and_group_close_are_completed_modal_actions() {
     let mut host = Host::new();
     let first = host.dependents[0];
     host.add_sibling();
@@ -1104,7 +1098,7 @@ fn nested_sibling_rename_and_root_close_are_completed_modal_actions() {
 
     host.explorer();
     host.send(b"r");
-    host.until("rename editor", |s| s.contains("Sessions · name · ↵ save"));
+    host.until("rename editor", |s| s.contains("Name:"));
     // Clear the default numbered path without depending on its length.
     host.send(&[127; 128]);
     host.send(b"renamed-session\r");
@@ -1130,9 +1124,10 @@ fn nested_sibling_rename_and_root_close_are_completed_modal_actions() {
     host.until("n added a sibling rather than another nesting level", |s| {
         s.contains("__FOURTH:")
     });
-    // Root is a real selectable group. Closing idle descendants does not ask
-    // for confirmation, and closing the entire tree restores the host terminal.
-    host.close_path(&[]);
+    // Close the nested group, then the remaining top-level session.
+    host.close_path(&[1]);
+    host.dismissed();
+    host.close_path(&[0]);
     host.wait_exit(0);
     host.wait_dead(&[first, second, third, fourth]);
 }
@@ -1152,12 +1147,7 @@ fn first_sibling_preserves_shell_state_and_inherits_active_cwd() {
     assert!(!host.visible().contains("__ORIGINAL_CONTENTS__"));
     host.dimensions("SECOND_SIZE", 24);
     host.explorer();
-    assert_explorer_snapshot(
-        &host.visible(),
-        host.cols,
-        host.rows,
-        &["▾ All sessions", "1", "› 2 ●"],
-    );
+    assert_explorer_snapshot(&host.visible(), host.cols, host.rows, &["1", "› 2 ●"]);
     host.send(b"\x1b");
     host.dismissed();
     host.send(b"printf '__%s:%s__\\n' CWD \"${PWD##*/}\"; printf '__%s:%s__\\n' NEW_STATE \"${KEEP-unset}\"\n");
@@ -1198,17 +1188,15 @@ fn recursive_explorer_restores_descendants_and_prunes_only_empty_groups() {
     });
     host.explorer();
     host.send(b"\x1b[A");
-    host.until("Up from first leaf reaches the root group", |s| {
+    host.until("Up from first leaf stays at the first session", |s| {
         explorer_visible(s)
             && s.lines()
                 .filter_map(explorer_row)
-                .any(|row| row.starts_with('›') && row.ends_with("▾ All sessions"))
+                .any(|row| row.starts_with('›') && row.ends_with("1 ●"))
     });
     host.send(b"\r");
     host.dismissed();
-    host.until("root confirms its selected descendant", |s| {
-        s.contains("__SHELL:")
-    });
+    host.until("first session opens directly", |s| s.contains("__SHELL:"));
     host.select_path(&[1]);
     host.until("selected descendant restored", |s| s.contains("__FOURTH:"));
     host.select_path(&[1, 0]);
