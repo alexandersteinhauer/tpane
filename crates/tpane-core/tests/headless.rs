@@ -82,6 +82,15 @@ async fn screen_until(terminal: &Terminal, mut done: impl FnMut(&str) -> bool) -
     }
 }
 
+/// Waits until the last non-empty row is the bare prompt.
+async fn wait_for_prompt(viewer: &mut Viewer, model: &mut ScreenModel) {
+    let at_prompt =
+        |model: &ScreenModel| model.text().lines().last().map(str::trim_end) == Some("$");
+    if !at_prompt(model) {
+        until(viewer, model, |model, _| at_prompt(model)).await;
+    }
+}
+
 fn has_line(text: &str, line: &str) -> bool {
     text.lines().any(|candidate| candidate.trim_end() == line)
 }
@@ -297,12 +306,14 @@ async fn frames_report_mouse_and_paste_modes_and_input_follows_them() {
         model.text().contains('$')
     })
     .await;
+    // The job prints a marker itself, after bash made it the foreground
+    // process group; input typed before that would race the shell.
     type_text(
         &terminal,
-        "printf '\\033[?1002h\\033[?2004h\\033[?1004h'; cat -v\r",
+        "printf '\\033[?1002h\\033[?2004h\\033[?1004h'; sh -c 'echo rea\"\"dy; exec cat -v'\r",
     );
-    let frame = until(&mut viewer, &mut model, |_, frame| {
-        frame.modes.mouse == MouseTracking::Button
+    let frame = until(&mut viewer, &mut model, |model, frame| {
+        frame.modes.mouse == MouseTracking::Button && has_line(&model.text(), "ready")
     })
     .await;
     assert!(frame.modes.bracketed_paste);
@@ -323,12 +334,20 @@ async fn frames_report_mouse_and_paste_modes_and_input_follows_them() {
         .input(InputEvent::Focus { focused: false })
         .unwrap();
     type_text(&terminal, "\r");
-    // cat -v shows the bracketed paste, the X10-encoded press and focus out.
+    // cat -v shows the bracketed paste, the X10-encoded press and focus out:
+    // once as the terminal's echo, once as cat's output.
+    let line = "^[[200~xy^[[201~^[[M #$^[[O";
     until(&mut viewer, &mut model, |model, _| {
-        model.text().contains("^[[200~xy^[[201~^[[M #$^[[O")
+        model
+            .text()
+            .lines()
+            .filter(|text| text.trim_end() == line)
+            .count()
+            == 2
     })
     .await;
     terminal.input(ctrl('c')).unwrap();
+    wait_for_prompt(&mut viewer, &mut model).await;
     type_text(&terminal, "printf '\\033[?1002l'\r");
     // (Newer bash enables bracketed paste itself at its prompt.)
     let frame = until(&mut viewer, &mut model, |_, frame| {
@@ -336,6 +355,43 @@ async fn frames_report_mouse_and_paste_modes_and_input_follows_them() {
     })
     .await;
     assert!(!frame.modes.alternate_screen);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ctrl_c_interrupts_the_foreground_job_and_returns_to_the_prompt() {
+    let (terminal, _events) = start(Size::new(60, 10)).await;
+    let mut viewer = terminal.attach().unwrap();
+    let mut model = ScreenModel::default();
+    wait_for_prompt(&mut viewer, &mut model).await;
+    for round in 0..3 {
+        // The job prints its PID itself, after it took the foreground; the
+        // echoed command line shows `$$` instead, so it cannot match.
+        type_text(&terminal, "sh -c 'echo sleeping:$$; exec sleep 100'\r");
+        let mut pid = None;
+        until(&mut viewer, &mut model, |model, _| {
+            pid = model.text().lines().find_map(|line| {
+                line.trim_end()
+                    .strip_prefix("sleeping:")?
+                    .parse::<i32>()
+                    .ok()
+            });
+            pid.is_some()
+        })
+        .await;
+        let pid = pid.unwrap();
+        terminal.input(ctrl('c')).unwrap();
+        wait_for_prompt(&mut viewer, &mut model).await;
+        // The interrupted job is gone, not just backgrounded.
+        type_text(
+            &terminal,
+            &format!("clear; kill -0 {pid} 2>/dev/null || echo gone{round}\r"),
+        );
+        until(&mut viewer, &mut model, |model, _| {
+            has_line(&model.text(), &format!("gone{round}"))
+        })
+        .await;
+        wait_for_prompt(&mut viewer, &mut model).await;
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
