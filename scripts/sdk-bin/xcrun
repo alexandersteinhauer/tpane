@@ -1,7 +1,0 @@
-#!/bin/sh
-# Zig 0.15.2 overrides SDKROOT with this explicit SDK query.
-if [ "$#" -eq 3 ] && [ "$1" = --sdk ] && [ "$2" = macosx ] && [ "$3" = --show-sdk-path ] && [ -n "${SDKROOT:-}" ]; then
-    printf '%s\n' "$SDKROOT"
-else
-    exec /usr/bin/xcrun "$@"
-fi

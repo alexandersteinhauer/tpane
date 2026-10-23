@@ -358,18 +358,12 @@ fn emit_style(output: &mut impl Write, style: Style, palette: &[RgbColor; 256]) 
 mod tests {
     use super::*;
     use libghostty_vt::{
-        TerminalOptions,
         selection::Selection,
         terminal::{Point, PointCoordinate},
     };
 
     fn terminal(cols: u16, rows: u16) -> Terminal<'static, 'static> {
-        Terminal::new(TerminalOptions {
-            cols,
-            rows,
-            max_scrollback: 100,
-        })
-        .unwrap()
+        Terminal::new(cols, rows).unwrap()
     }
 
     fn text_at(terminal: &Terminal<'_, '_>, x: u16, y: u32) -> u32 {

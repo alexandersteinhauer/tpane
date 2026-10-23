@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::{Result, ensure};
 use libghostty_vt::{
-    Terminal, TerminalOptions,
+    Terminal,
     terminal::{
         ConformanceLevel, DeviceAttributeFeature, DeviceAttributes, DeviceType,
         PrimaryDeviceAttributes, SecondaryDeviceAttributes, SizeReportSize,
@@ -21,11 +21,9 @@ pub struct Engine {
 
 impl Engine {
     pub fn new(cols: u16, rows: u16) -> Result<Self> {
-        let mut terminal = Terminal::new(TerminalOptions {
-            cols,
-            rows,
-            max_scrollback: 10_000,
-        })?;
+        let mut terminal = Terminal::new(cols, rows)?;
+        // Ghostty limits scrollback by bytes, pruning whole pages.
+        terminal.set_scrollback_max_bytes(Some(10_000))?;
         let replies = Rc::new(RefCell::new(Vec::new()));
         let sink = Rc::clone(&replies);
         terminal.on_pty_write(move |_, bytes| sink.borrow_mut().extend_from_slice(bytes))?;
@@ -104,7 +102,8 @@ mod tests {
     fn resize_emits_in_band_reports_without_more_pty_output() {
         let mut engine = Engine::new(80, 24).unwrap();
         engine.feed(b"\x1b[?2048h").unwrap();
-        assert!(engine.take_replies().is_empty());
+        // Enabling mode 2048 reports the current size immediately.
+        assert_eq!(engine.take_replies(), b"\x1b[48;24;80;0;0t");
         engine.resize(101, 31, 9, 18).unwrap();
         assert_eq!(engine.take_replies(), b"\x1b[48;31;101;558;909t");
         engine.resize(47, 12, 9, 18).unwrap();

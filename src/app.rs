@@ -632,12 +632,7 @@ mod tests {
             .unwrap()
             .output(b"\x1b[2J\x1b[HBASE")
             .unwrap();
-        let mut host = libghostty_vt::Terminal::new(libghostty_vt::TerminalOptions {
-            cols: 80,
-            rows: 24,
-            max_scrollback: 0,
-        })
-        .unwrap();
+        let mut host = libghostty_vt::Terminal::new(80, 24).unwrap();
         host.vt_write(b"\x1b[?7l");
         for open in [false, true, true, false] {
             if open != app.explorer.is_some() {

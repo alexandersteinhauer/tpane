@@ -3,11 +3,11 @@ set -eu
 cd "$(dirname "$0")/.."
 [ "$(uname -s)" = Darwin ] || { echo 'Only macOS is supported.' >&2; exit 1; }
 case "$(uname -m)" in
-  arm64) arch=aarch64; checksum=3cc2bab367e185cdfb27501c4b30b1b0653c28d9f73df8dc91488e66ece5fa6b ;;
-  x86_64) arch=x86_64; checksum=375b6909fc1495d16fc2c7db9538f707456bfc3373b14ee83fdd3e22b3d43f7f ;;
+  arm64) arch=aarch64; checksum=b23d70deaa879b5c2d486ed3316f7eaa53e84acf6fc9cc747de152450d401489 ;;
+  x86_64) arch=x86_64; checksum=0387557ed1877bc6a2e1802c8391953baddba76081876301c522f52977b52ba7 ;;
   *) echo 'Unsupported architecture.' >&2; exit 1 ;;
 esac
-version=0.15.2
+version=0.16.0
 directory="zig-$arch-macos-$version"
 mkdir -p .tools
 if [ ! -x ".tools/$directory/zig" ]; then

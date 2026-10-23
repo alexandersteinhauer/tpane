@@ -142,14 +142,16 @@ static int host_init(struct host *host, int fd, uint16_t rows, uint32_t top)
     memset(host, 0, sizeof(*host));
     host->fd = fd;
     host->top = top;
-    GhosttyTerminalOptions options = {
-        .cols = COLS, .rows = rows, .max_scrollback = 10000,
-    };
-    if (api_check(ghostty_terminal_new(NULL, &host->terminal, options),
+    if (api_check(ghostty_terminal_new(NULL, &host->terminal, COLS, rows),
                   "create terminal") < 0)
         return -1;
+    /* Match tpane: Ghostty limits scrollback by bytes, pruning whole pages. */
+    size_t max_scrollback = 10000;
     /* Pointer-valued options take the pointer itself, not its address. */
     return api_check(ghostty_terminal_set(host->terminal,
+                         GHOSTTY_TERMINAL_OPT_SCROLLBACK_MAX_BYTES, &max_scrollback),
+                     "set scrollback limit") ||
+           api_check(ghostty_terminal_set(host->terminal,
                          GHOSTTY_TERMINAL_OPT_USERDATA, host), "set userdata") ||
            api_check(ghostty_terminal_set(host->terminal,
                          GHOSTTY_TERMINAL_OPT_WRITE_PTY, (const void *)write_pty),
@@ -188,12 +190,12 @@ static int codepoint(struct host *host, uint16_t x, uint32_t *out)
  */
 static int next_marker(struct host *host, char text[MARKER_COLS + 1])
 {
-    bool synchronized;
-    if (api_check(ghostty_terminal_mode_get(host->terminal,
-                      GHOSTTY_MODE_SYNC_OUTPUT, &synchronized),
+    GhosttyTerminalModeConfig synchronized = { .mode = GHOSTTY_MODE_SYNC_OUTPUT };
+    if (api_check(ghostty_terminal_get(host->terminal, GHOSTTY_TERMINAL_DATA_MODE,
+                                       &synchronized),
                   "read synchronized-output mode") < 0)
         return -1;
-    if (synchronized)
+    if (synchronized.value)
         return 0;
     uint32_t cp;
     if (codepoint(host, 0, &cp) < 0)

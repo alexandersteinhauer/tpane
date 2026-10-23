@@ -71,7 +71,7 @@ fn selected_text(terminal: &Terminal<'_, '_>) -> Result<Option<Vec<u8>>> {
 mod tests {
     use super::*;
     use crossterm::event::KeyModifiers;
-    use libghostty_vt::{TerminalOptions, terminal::ScrollViewport};
+    use libghostty_vt::terminal::ScrollViewport;
 
     fn mouse(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
         MouseEvent {
@@ -84,12 +84,7 @@ mod tests {
 
     #[test]
     fn selects_and_copies_from_independent_scrollback() {
-        let mut terminal = Terminal::new(TerminalOptions {
-            cols: 20,
-            rows: 2,
-            max_scrollback: 100,
-        })
-        .unwrap();
+        let mut terminal = Terminal::new(20, 2).unwrap();
         terminal.vt_write(b"old line\r\nsecond\r\nthird\r\n");
         terminal.scroll_viewport(ScrollViewport::Top);
         let mut selection = SelectionState::default();

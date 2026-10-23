@@ -203,7 +203,7 @@ fn modifiers(mods: KeyModifiers) -> key::Mods {
     ] {
         result.set(child, mods.contains(host));
     }
-    // libghostty-vt 0.2.1 has no Hyper or Kitty Meta modifier bits.
+    // libghostty-vt has no Hyper or Kitty Meta modifier bits.
     result
 }
 
@@ -429,12 +429,7 @@ mod tests {
     use super::*;
 
     fn terminal() -> Terminal<'static, 'static> {
-        Terminal::new(libghostty_vt::terminal::Options {
-            cols: 80,
-            rows: 24,
-            max_scrollback: 0,
-        })
-        .unwrap()
+        Terminal::new(80, 24).unwrap()
     }
 
     #[test]

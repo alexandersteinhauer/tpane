@@ -14,13 +14,7 @@ Requires macOS, Xcode Command Line Tools, Git, and Rust through rustup. Rust **1
 ./target/release/tpane
 ```
 
-Bootstrap installs checksum-verified **Zig 0.15.2** into ignored `.tools/`, without changing your system installation. Zig builds Ghostty, not Rust. The first build needs network access for Cargo, Ghostty source, and Zig dependencies. `libghostty-vt` is pinned to **0.2.1**, whose native build pins Ghostty to `a887df42c56f6de86c0fe6da9c4eeca37931e083`.
-
-On Apple Silicon, Zig 0.15.2 cannot use the arm64e-only top-level stubs in the macOS 26.5 SDK. `scripts/cargo.sh` detects this and selects an installed macOS 15.4 SDK. If necessary, install a compatible SDK and select it explicitly:
-
-```sh
-SDKROOT=/path/to/MacOSX15.4.sdk ./scripts/cargo.sh build --release --locked
-```
+Bootstrap installs checksum-verified **Zig 0.16.0** into ignored `.tools/`, without changing your system installation. Zig builds Ghostty, not Rust. The first build needs network access for Cargo, Ghostty source, and Zig dependencies. `libghostty-vt` is pinned to libghostty-rs commit `d2036baeb605d31d09a9e2ba6d0c923e04c34d54` (unreleased; crates.io 0.2.2 still uses an older Ghostty), whose native build pins Ghostty to `3425025e585a3403340d4dc6d65132f42e05e605`. Ghostty requires a Zig with the same major.minor version as its `minimum_zig_version`, so Zig 0.17 cannot build it.
 
 ## Use
 

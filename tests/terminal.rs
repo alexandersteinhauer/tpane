@@ -10,7 +10,7 @@ use std::{
 };
 
 use libghostty_vt::{
-    Terminal, TerminalOptions,
+    Terminal,
     screen::Screen,
     terminal::{Mode, Point, PointCoordinate},
 };
@@ -197,12 +197,7 @@ impl Host {
             unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) },
             0
         );
-        let mut terminal = Terminal::new(TerminalOptions {
-            cols: 80,
-            rows: 24,
-            max_scrollback: 100,
-        })
-        .unwrap();
+        let mut terminal = Terminal::new(80, 24).unwrap();
         terminal.vt_write(HOST_TEXT.as_bytes());
         let mut command = CommandBuilder::new(
             std::env::var_os("TPANE_TEST_BINARY")
@@ -779,6 +774,7 @@ try:
     tty.setraw(0)
     signal.signal(signal.SIGWINCH, signal.SIG_IGN)
     os.write(1, b'\x1b[?2048h')
+    report()  # Enabling mode 2048 reports the current size immediately.
     os.write(1, b'\r\n__RESIZE_READY__\r\n')
     data = report()
     os.write(1, b'\r\n__REPORT:' + data.hex().encode() + b'__\r\n')
@@ -1311,7 +1307,12 @@ saved = termios.tcgetattr(0)
 try:
     tty.setraw(0)
     signal.signal(signal.SIGWINCH, signal.SIG_IGN)
-    os.write(1, b'\x1b[?2048h\r\n__HIDDEN_PID:' + str(os.getpid()).encode() + b'__\r\n')
+    os.write(1, b'\x1b[?2048h')
+    # Enabling mode 2048 reports the current size immediately.
+    data = b''
+    while not data.endswith(b't'):
+        data += os.read(0, 1)
+    os.write(1, b'\r\n__HIDDEN_PID:' + str(os.getpid()).encode() + b'__\r\n')
     data = b''
     while not data.endswith(b't'):
         data += os.read(0, 1)
