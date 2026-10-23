@@ -2,7 +2,12 @@
 
 A minimal Rust terminal multiplexer for macOS, running inside Ghostty. It supports nested sessions with a keyboard-driven explorer, independent terminal state and scrollback, and shell job control. The active terminal uses the entire viewport, with no persistent bars. No server, detach/reattach, persistence, or splits.
 
-The application in `src/` uses Tokio with an independent I/O worker. This is the sole implementation, not an optional experiment. Daily-use hardening remains incomplete: [manual Ghostty/Neovim validation and intermittent PTY resize findings](docs/VALIDATION.md) are still open.
+The repository is a Cargo workspace:
+
+- **`crates/tpane-core`**, a library: the Ghostty emulator wrapper, PTY and transport, process watching, input encoding from its own event types, the renderer (VT output or frames of styled runs), panes and selection, and **headless terminals** that a host such as a web server drives without any real terminal. It does not depend on Crossterm and builds on macOS and Linux.
+- **`tpane`** (`src/`), the macOS app on top: Crossterm host I/O, the explorer, tab and command keys, the session tree and the main loop. It uses Tokio with an independent I/O worker.
+
+Daily-use hardening remains incomplete: [manual Ghostty/Neovim validation and intermittent PTY resize findings](docs/VALIDATION.md) are still open.
 
 ## Build and run
 
@@ -14,7 +19,38 @@ Requires macOS, Xcode Command Line Tools, Git, and Rust through rustup. Rust **1
 ./target/release/tpane
 ```
 
-Bootstrap installs checksum-verified **Zig 0.16.0** into ignored `.tools/`, without changing your system installation. Zig builds Ghostty, not Rust. The first build needs network access for Cargo, Ghostty source, and Zig dependencies. `libghostty-vt` is pinned to libghostty-rs commit `d2036baeb605d31d09a9e2ba6d0c923e04c34d54` (unreleased; crates.io 0.2.2 still uses an older Ghostty), whose native build pins Ghostty to `3425025e585a3403340d4dc6d65132f42e05e605`. Ghostty requires a Zig with the same major.minor version as its `minimum_zig_version`, so Zig 0.17 cannot build it.
+Bootstrap installs checksum-verified **Zig 0.16.0** into ignored `.tools/` (macOS arm64/x86_64, Linux x86_64/aarch64), without changing your system installation. Zig builds Ghostty, not Rust. The first build needs network access for Cargo, Ghostty source, and Zig dependencies. `libghostty-vt` is pinned to libghostty-rs commit `d2036baeb605d31d09a9e2ba6d0c923e04c34d54` (unreleased; crates.io 0.2.2 still uses an older Ghostty), whose native build pins Ghostty to `3425025e585a3403340d4dc6d65132f42e05e605`. Ghostty requires a Zig with the same major.minor version as its `minimum_zig_version`, so Zig 0.17 cannot build it.
+
+## Using tpane-core
+
+```toml
+tpane-core = { git = "…", features = ["serde"] }
+```
+
+Zig 0.16.0 is needed to build (it compiles Ghostty into a static library); nothing extra is needed where the binary runs. The library's dependencies are semver ranges (`tokio = "1"` with `rt`, `net`, `sync`, `time`, `macros`; `libc`, `anyhow`, `portable-pty`, optional `serde`); only `libghostty-vt` is pinned to a git revision, because no crates.io release has the Ghostty API it needs.
+
+```rust
+use tpane_core::{InputEvent, Key, KeyEvent, Size, Terminal, TerminalEvent, TerminalOptions};
+
+// In a multi-thread Tokio runtime:
+let options = TerminalOptions::new("/bin/bash", "/home/me/project", Size::new(100, 30));
+let (terminal, mut events) = Terminal::spawn(options).await?;
+let mut viewer = terminal.attach()?;           // first frame is full
+terminal.input(InputEvent::Key(KeyEvent::text('l')))?;
+terminal.input(InputEvent::Key(KeyEvent::text('s')))?;
+terminal.input(InputEvent::Key(KeyEvent::press(Key::Enter)))?;
+while let Some(frame) = viewer.next().await {    // then incremental frames
+    send_to_browser(serde_json::to_string(&*frame)?);
+}
+let text = terminal.screen_text().await?;       // or scrollback_text()
+match events.recv().await {
+    Some(TerminalEvent::Copy(text)) => { /* selection to the clipboard */ }
+    Some(TerminalEvent::Exited(status)) => { /* the screen stays readable */ }
+    _ => {}
+}
+```
+
+A `Frame` holds the changed rows as runs of text with resolved styles (RGB or default colours, attributes, underline kind and colour) and exact cell widths, plus cursor, title, the modes a viewer needs (mouse tracking, bracketed paste, alternate screen, focus reporting), default colours and the scrollbar. `ScreenModel` is a reference viewer that applies frames. Each terminal has one owner thread for its `!Send` Ghostty state; see [DESIGN.md](docs/DESIGN.md#tpane-core-and-headless-terminals). Check the core on Linux with `scripts/linux-check.sh [image]` (Docker; Alpine/musl).
 
 ## Use
 
@@ -98,9 +134,10 @@ machine. Raw results go to `.tools/bench/`; see [methodology](docs/PERFORMANCE.m
 ## Validation
 
 ```sh
-./scripts/cargo.sh fmt --check
-./scripts/cargo.sh test --locked
-./scripts/cargo.sh clippy --all-targets --locked -- -D warnings
+./scripts/cargo.sh fmt --all --check
+./scripts/cargo.sh test --workspace --all-features --locked
+./scripts/cargo.sh clippy --workspace --all-targets --all-features --locked -- -D warnings
+./scripts/linux-check.sh            # tpane-core on Linux, in Docker
 python3 scripts/test-benchmark.py
 python3 scripts/test-bench.py
 python3 scripts/test-bench-producer.py
@@ -113,6 +150,7 @@ Chromeless validation passed Clippy, release build, explorer/integration coverag
 - Intermittent PTY startup/resize failures remain unresolved, including a serial resize-test reproduction. Manual validation with the actual Ghostty, shell, and Neovim configuration is required.
 - The explorer uses Unicode borders and markers, and clips explicit names by grapheme/cell width. It currently supports keyboard navigation only, with no search. No graphics/image protocols, clickable hyperlink UI, or child clipboard access.
 - Selection lacks word/line selection and drag-edge autoscroll. Mouse coordinates are cell-based; keyboard layout/physical-key information is incomplete.
-- Unstyled cells use host defaults; indexed colors use Ghostty's library palette, not the host's imported theme configuration.
+- Unstyled cells use host defaults; indexed colors use Ghostty's library palette, not the host's imported theme configuration. Frames resolve palette colours the same way and leave defaults to the viewer.
+- The app is macOS-only (`pbcopy`, Ghostty-oriented keyboard handling); `tpane-core` is cross-platform but only macOS and Linux are tested.
 - Nonfatal tab/input error presentation is deferred in the chromeless UI.
 - Cleanup discovers terminal-session members and descendants, but cannot guarantee termination of fully detached/reparented daemons, privileged children, or kernel-stuck processes. SIGKILL cannot restore the host or run cleanup.
