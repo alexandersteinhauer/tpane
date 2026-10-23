@@ -6,9 +6,11 @@ use std::{
 use anyhow::{Result, ensure};
 use libghostty_vt::{
     Terminal,
+    fmt::{Format, Formatter, FormatterOptions},
+    selection::{FormatOptions, Selection},
     terminal::{
-        ConformanceLevel, DeviceAttributeFeature, DeviceAttributes, DeviceType,
-        PrimaryDeviceAttributes, SecondaryDeviceAttributes, SizeReportSize,
+        ConformanceLevel, DeviceAttributeFeature, DeviceAttributes, DeviceType, Point,
+        PointCoordinate, PrimaryDeviceAttributes, SecondaryDeviceAttributes, SizeReportSize,
         TertiaryDeviceAttributes,
     },
 };
@@ -80,6 +82,47 @@ impl Engine {
     pub fn take_replies(&mut self) -> Vec<u8> {
         std::mem::take(&mut *self.replies.borrow_mut())
     }
+
+    /// The active area as plain text (what the program drew, regardless of
+    /// where the viewport is scrolled): one line per row, trailing
+    /// whitespace trimmed, by Ghostty's formatter.
+    pub fn screen_text(&self) -> Result<String> {
+        screen_text(&self.terminal)
+    }
+
+    /// Scrollback and active area as plain text, by Ghostty's formatter.
+    /// `unwrap` joins soft-wrapped lines.
+    pub fn all_text(&self, unwrap: bool) -> Result<String> {
+        let mut formatter = Formatter::new(
+            &self.terminal,
+            FormatterOptions::new()
+                .with_format(Format::Plain)
+                .with_trim(true)
+                .with_unwrap(unwrap),
+        )?;
+        let bytes = formatter.format_alloc(None)?;
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
+    }
+}
+
+/// See [`Engine::screen_text`].
+pub fn screen_text(terminal: &Terminal<'_, '_>) -> Result<String> {
+    let (cols, rows) = (terminal.cols()?, terminal.rows()?);
+    let start = terminal.grid_ref(Point::Active(PointCoordinate { x: 0, y: 0 }))?;
+    let end = terminal.grid_ref(Point::Active(PointCoordinate {
+        x: cols.saturating_sub(1),
+        y: u32::from(rows.saturating_sub(1)),
+    }))?;
+    let selection = Selection::new(start, end, false);
+    let bytes = terminal.format_selection_alloc(
+        None,
+        FormatOptions::new()
+            .with_trim(true)
+            .with_selection(&selection),
+    )?;
+    Ok(bytes
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+        .unwrap_or_default())
 }
 
 #[cfg(test)]

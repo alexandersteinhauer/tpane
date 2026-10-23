@@ -19,6 +19,7 @@
 pub mod bus;
 pub mod engine;
 pub mod event;
+pub mod frame;
 pub mod input;
 pub mod pane;
 pub mod process_watch;
