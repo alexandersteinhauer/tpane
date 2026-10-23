@@ -408,7 +408,13 @@ finally:
         .unwrap();
         self.send(b"/usr/bin/python3 frame_probe.py\n");
         let process = self.track_pid("__FRAME_PID:");
-        self.until("complete static frame", |s| s.contains("__FRAME_BASE__"));
+        // The marker row arriving is not enough: a host read can end inside
+        // tpane's repaint of that row, leaving the rest of its dots for later,
+        // which a later comparison would count as a change.
+        let (cols, rows) = (self.cols, self.rows);
+        self.until("complete static frame", |s| {
+            probe_frame_complete(s, "BASE", cols, rows)
+        });
         process
     }
 
@@ -421,7 +427,10 @@ finally:
     fn dimensions(&mut self, marker: &str, rows: u16) {
         // Host input and SIGWINCH are independent streams. Wait in the child
         // for the ioctl size instead of assuming the resize won that race.
-        self.send(format!("i=0; while [ \"$(stty size)\" != '{rows} {}' ] && [ \"$i\" -lt 50 ]; do i=$((i+1)); sleep 0.1; done; printf '__%s:' {marker}; stty size\n", self.cols).as_bytes());
+        // Marker and size go out in one printf: macOS /bin/sh can report
+        // "child setpgid ... Operation not permitted" when forking stty,
+        // which must not land between them.
+        self.send(format!("i=0; while [ \"$(stty size)\" != '{rows} {}' ] && [ \"$i\" -lt 50 ]; do i=$((i+1)); sleep 0.1; done; printf '__%s:%s\\n' {marker} \"$(stty size)\"\n", self.cols).as_bytes());
         let expected = format!("__{marker}:{rows} {}", self.cols);
         self.until("pane viewport dimensions", |s| s.contains(&expected));
     }
@@ -688,7 +697,7 @@ fn sustained_output_does_not_starve_ctrl_c_or_the_next_command() {
 #[test]
 fn host_resize_reaches_child_stty() {
     let mut host = Host::new();
-    host.send(b"printf '__%s:' INITIAL; stty size\n");
+    host.send(b"printf '__%s:%s\\n' INITIAL \"$(stty size)\"\n");
     host.until("initial child dimensions", |s| {
         s.contains("__INITIAL:24 80")
     });
@@ -934,6 +943,19 @@ fn explorer_open_cancel_and_confirm_preserve_selection_and_full_viewport() {
     });
     host.send(b"exit\n");
     host.wait_exit(0);
+}
+
+/// Every row of the frame probe's paint is drawn in full (each is `cols - 1`
+/// characters), and the last carries the label's marker.
+fn probe_frame_complete(screen: &str, label: &str, cols: u16, rows: u16) -> bool {
+    let lines: Vec<&str> = screen.lines().collect();
+    lines.len() == usize::from(rows)
+        && lines
+            .iter()
+            .all(|line| line.chars().count() == usize::from(cols) - 1)
+        && lines
+            .last()
+            .is_some_and(|line| line.starts_with(&format!("__FRAME_{label}__")))
 }
 
 // Compare real terminal cells rather than repaint escape sequences. The changed
