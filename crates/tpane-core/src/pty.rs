@@ -1,11 +1,12 @@
-//! A macOS PTY and its login shell.
+//! A PTY and its login shell (macOS and Linux).
 //!
 //! Cleanup enumerates the entire terminal session (jobs have distinct process
 //! groups), plus descendants that created a new session. This is best effort:
-//! macOS has no unprivileged equivalent of a killable process cgroup. A daemon
-//! that both detaches and reparents before discovery, a privileged child, or a
-//! process stuck in the kernel can escape cleanup. Only our direct child can be
-//! reaped; orphaned grandchildren are reaped by launchd.
+//! there is no unprivileged killable process container on macOS (nor on
+//! Linux without a delegated cgroup). A daemon that both detaches and
+//! reparents before discovery, a privileged child, or a process stuck in the
+//! kernel can escape cleanup. Only our direct child can be reaped; orphaned
+//! grandchildren are reaped by launchd or init (or a subreaper).
 
 use anyhow::{Context, Result, ensure};
 use portable_pty::{
@@ -16,10 +17,38 @@ use std::ffi::OsString;
 #[cfg(test)]
 use std::io::Read;
 use std::io::Write;
-use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
+
+use crate::process::{self, Process};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
+
+/// What to run in a new PTY.
+#[derive(Clone, Debug)]
+pub struct Command {
+    pub program: PathBuf,
+    pub args: Vec<OsString>,
+    pub cwd: PathBuf,
+    /// Applied after the defaults (`TERM=xterm-256color`, `COLORTERM`,
+    /// `SHELL`), so it can override them.
+    pub env: Vec<(OsString, OsString)>,
+    /// Start from an empty environment instead of this process's (minus
+    /// variables that belong to an enclosing terminal emulator).
+    pub clear_env: bool,
+}
+
+impl Command {
+    /// `shell -l` in `cwd`.
+    pub fn login_shell(shell: impl Into<PathBuf>, cwd: impl Into<PathBuf>) -> Self {
+        Self {
+            program: shell.into(),
+            args: vec!["-l".into()],
+            cwd: cwd.into(),
+            env: Vec::new(),
+            clear_env: false,
+        }
+    }
+}
 
 pub struct Session {
     master: Box<dyn MasterPty + Send>,
@@ -28,6 +57,7 @@ pub struct Session {
     shell_pid: libc::pid_t,
     known: HashMap<libc::pid_t, Process>,
     exit_status: Option<ExitStatus>,
+    terminated: bool,
 }
 
 impl Session {
@@ -42,14 +72,22 @@ impl Session {
     }
 
     pub fn spawn_in(shell: &Path, rows: u16, cols: u16, cwd: &Path) -> Result<Self> {
+        Self::spawn_command(&Command::login_shell(shell, cwd), rows, cols)
+    }
+
+    pub fn spawn_command(spec: &Command, rows: u16, cols: u16) -> Result<Self> {
         let size = size(rows, cols)?;
         let pair = open_pty(size)?;
         // Acquire this before spawning so a writer failure cannot orphan a child.
         let writer = pair.master.take_writer().context("opening PTY writer")?;
+        let shell = &spec.program;
         let mut command = CommandBuilder::new(shell);
-        command.arg("-l");
+        command.args(&spec.args);
+        if spec.clear_env {
+            command.env_clear();
+        }
         // portable-pty otherwise defaults to HOME.
-        command.cwd(cwd);
+        command.cwd(&spec.cwd);
         command.env("SHELL", shell);
         command.env("TERM", "xterm-256color");
         command.env("COLORTERM", "truecolor");
@@ -89,6 +127,9 @@ impl Session {
         ] {
             command.env_remove(key);
         }
+        for (key, value) in &spec.env {
+            command.env(key, value);
+        }
         // The Unix backend calls setsid(), attaches the controlling terminal,
         // and connects all three standard streams to the slave before exec.
         let child = pair
@@ -96,7 +137,7 @@ impl Session {
             .spawn_command(command)
             .with_context(|| format!("spawning login shell {}", shell.display()))?;
         drop(pair.slave); // Retaining a slave prevents readers from seeing EOF.
-        let shell_pid = child.process_id().expect("macOS PTY child has a PID") as libc::pid_t;
+        let shell_pid = child.process_id().expect("a PTY child has a PID") as libc::pid_t;
         let mut known = HashMap::new();
         if let Some(process) = Process::read(shell_pid) {
             known.insert(shell_pid, process);
@@ -108,6 +149,7 @@ impl Session {
             shell_pid,
             known,
             exit_status: None,
+            terminated: false,
         })
     }
 
@@ -119,28 +161,9 @@ impl Session {
         if !shell.is_running() {
             return None;
         }
-        let mut info = std::mem::MaybeUninit::<libc::proc_vnodepathinfo>::zeroed();
-        let len = std::mem::size_of::<libc::proc_vnodepathinfo>() as libc::c_int;
-        let read = unsafe {
-            libc::proc_pidinfo(
-                self.shell_pid,
-                libc::PROC_PIDVNODEPATHINFO,
-                0,
-                info.as_mut_ptr().cast(),
-                len,
-            )
-        };
+        let path = process::cwd(self.shell_pid)?;
         // Check birth time on both sides of the query to reject PID reuse.
-        if read != len || !shell.is_running() {
-            return None;
-        }
-        let info = unsafe { info.assume_init() };
-        let path = info.pvi_cdir.vip_path.as_flattened();
-        let end = path.iter().position(|&byte| byte == 0)?;
-        let path = PathBuf::from(OsString::from_vec(
-            path[..end].iter().map(|&byte| byte as u8).collect(),
-        ));
-        path.is_absolute().then_some(path)
+        shell.is_running().then_some(path)
     }
 
     pub fn has_foreground_job(&self) -> bool {
@@ -208,7 +231,7 @@ impl Session {
     }
 
     fn discover(&mut self, allow_unanchored_session: bool) {
-        let processes = process_snapshot();
+        let processes = process::snapshot();
         let shell = processes.iter().find(|p| p.pid == self.shell_pid);
         let shell_reused = shell.is_some_and(|p| {
             self.known
@@ -270,6 +293,17 @@ impl Session {
 
 impl Drop for Session {
     fn drop(&mut self) {
+        self.terminate();
+    }
+}
+
+impl Session {
+    /// Ends the session's processes (TERM, then KILL) and reaps the shell.
+    /// Blocks for up to about half a second. Idempotent; also run on drop.
+    pub fn terminate(&mut self) {
+        if std::mem::replace(&mut self.terminated, true) {
+            return;
+        }
         // portable-pty's writer Drop writes newline + VEOF. A full/stopped PTY
         // can block that write forever. Duplicates share these file status flags;
         // change them only now, when the session is shutting down.
@@ -343,94 +377,17 @@ fn size(rows: u16, cols: u16) -> Result<PtySize> {
     })
 }
 
-#[derive(Clone, Copy)]
-struct Process {
-    pid: libc::pid_t,
-    ppid: libc::pid_t,
-    sid: libc::pid_t,
-    start: (u64, u64),
-    zombie: bool,
-}
-
-impl Process {
-    fn read(pid: libc::pid_t) -> Option<Self> {
-        if pid <= 1 {
-            return None;
-        }
-        let mut info = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
-        let len = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
-        // libproc fills exactly this versioned structure on success.
-        let read = unsafe {
-            libc::proc_pidinfo(
-                pid,
-                libc::PROC_PIDTBSDINFO,
-                0,
-                info.as_mut_ptr().cast(),
-                len,
-            )
-        };
-        if read != len {
-            return None;
-        }
-        let info = unsafe { info.assume_init() };
-        Some(Self {
-            pid,
-            ppid: info.pbi_ppid as libc::pid_t,
-            sid: unsafe { libc::getsid(pid) },
-            start: (info.pbi_start_tvsec, info.pbi_start_tvusec),
-            zombie: info.pbi_status == libc::SZOMB,
-        })
-    }
-
-    fn same_process(&self, other: &Self) -> bool {
-        self.pid == other.pid && self.start == other.start
-    }
-
-    fn is_running(&self) -> bool {
-        Self::read(self.pid).is_some_and(|p| self.same_process(&p) && !p.zombie)
-    }
-
-    fn signal(&self, signal: libc::c_int) {
-        // Birth time prevents signaling most PID reuse cases. macOS has no
-        // pidfd: a tiny check-to-kill race remains, so never signal a whole group.
-        if self.pid != std::process::id() as libc::pid_t && self.is_running() {
-            unsafe {
-                libc::kill(self.pid, signal);
-            }
-        }
-    }
-}
-
-fn process_snapshot() -> Vec<Process> {
-    // PROC_ALL_PIDS from <sys/proc_info.h> is not exported by libc.
-    const PROC_ALL_PIDS: u32 = 1;
-    let bytes = unsafe { libc::proc_listpids(PROC_ALL_PIDS, 0, std::ptr::null_mut(), 0) };
-    if bytes <= 0 {
-        return Vec::new();
-    }
-    // Leave headroom for forks between the sizing and reading calls. Bounded
-    // retries in Drop handle additional churn without unbounded allocation.
-    let count = (bytes as usize / std::mem::size_of::<libc::pid_t>() + 256).min(1_048_576);
-    let mut pids = vec![0 as libc::pid_t; count];
-    let bytes = unsafe {
-        libc::proc_listpids(
-            PROC_ALL_PIDS,
-            0,
-            pids.as_mut_ptr().cast(),
-            (pids.len() * std::mem::size_of::<libc::pid_t>()) as libc::c_int,
-        )
-    };
-    if bytes <= 0 {
-        return Vec::new();
-    }
-    pids.truncate(bytes as usize / std::mem::size_of::<libc::pid_t>());
-    pids.into_iter().filter_map(Process::read).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::mpsc::{self, Receiver};
+
+    /// macOS's /bin/sh is bash; Linux's often is dash, without `shopt`.
+    const TEST_SHELL: &str = if cfg!(target_os = "linux") {
+        "/bin/bash"
+    } else {
+        "/bin/sh"
+    };
 
     struct Terminal {
         session: Session,
@@ -442,7 +399,7 @@ mod tests {
         fn new() -> Self {
             // sh avoids personal zsh/bash interactive configuration; -l still
             // exercises the public login-shell path.
-            Self::with_session(Session::spawn(Path::new("/bin/sh"), 24, 80).unwrap())
+            Self::with_session(Session::spawn(Path::new(TEST_SHELL), 24, 80).unwrap())
         }
 
         fn with_session(session: Session) -> Self {
@@ -552,7 +509,7 @@ mod tests {
     #[test]
     fn spawn_in_uses_requested_directory() {
         let cwd = std::env::temp_dir().canonicalize().unwrap();
-        let session = Session::spawn_in(Path::new("/bin/sh"), 24, 80, &cwd).unwrap();
+        let session = Session::spawn_in(Path::new(TEST_SHELL), 24, 80, &cwd).unwrap();
         let mut terminal = Terminal::with_session(session);
         assert_eq!(terminal.session.cwd(), Some(cwd.clone()));
         terminal.send("pwd -P; printf '__%s__\\n' DIRECTORY\n");

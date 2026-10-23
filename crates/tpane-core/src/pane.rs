@@ -1,6 +1,5 @@
 use std::{
     io::Write,
-    path::Path,
     time::{Duration, Instant},
 };
 
@@ -12,10 +11,11 @@ use crate::{
     bus::Bus,
     engine::Engine,
     event::{InputEvent, MouseAction, MouseButton, MouseEvent},
+    frame::Frame,
     input::{self, Input},
     process_watch::ProcessWatch,
-    pty::Session,
-    render::Renderer,
+    pty::{Command, Session},
+    render::{FrameMeta, Renderer},
     selection::SelectionState,
     transport::{self, Writer},
 };
@@ -38,8 +38,7 @@ pub struct Pane {
 
 impl Pane {
     pub fn new(
-        shell: &Path,
-        cwd: &Path,
+        command: &Command,
         id: Id,
         geometry: (u16, u16, (u16, u16)),
         bus: Bus,
@@ -51,7 +50,7 @@ impl Pane {
         let renderer = Renderer::new()?;
         let mut input = Input::new()?;
         input.set_cell_size(cell.0, cell.1);
-        let session = Session::spawn_in(shell, rows, cols, cwd)?;
+        let session = Session::spawn_command(command, rows, cols)?;
         let connection = transport::connect(session.raw_fd()?, id, bus)?;
         watch.watch(session.pid(), id)?;
         Ok(Self {
@@ -144,6 +143,30 @@ impl Pane {
     pub fn draw(&mut self, output: &mut impl Write, top: u16, force: bool) -> Result<()> {
         self.renderer
             .draw_at(&self.engine.terminal, output, top, force)
+    }
+
+    /// See [`Renderer::frame`].
+    pub fn frame(&mut self, full: bool, always: bool) -> Result<Option<Frame>> {
+        self.renderer.frame(&self.engine.terminal, full, always)
+    }
+
+    /// See [`Renderer::frame_with`].
+    pub fn frame_with(
+        &mut self,
+        meta: FrameMeta,
+        full: bool,
+        always: bool,
+    ) -> Result<Option<Frame>> {
+        self.renderer
+            .frame_with(&self.engine.terminal, meta, full, always)
+    }
+
+    pub fn engine(&self) -> &Engine {
+        &self.engine
+    }
+
+    pub fn engine_mut(&mut self) -> &mut Engine {
+        &mut self.engine
     }
 
     pub fn focus(&mut self, focused: bool) -> Result<()> {

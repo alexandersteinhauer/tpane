@@ -22,6 +22,7 @@ pub mod event;
 pub mod frame;
 pub mod input;
 pub mod pane;
+mod process;
 pub mod process_watch;
 pub mod pty;
 pub mod render;
@@ -35,6 +36,8 @@ pub use libghostty_vt as vt;
 pub use event::{
     InputEvent, Key, KeyAction, KeyEvent, Modifiers, MouseAction, MouseButton, MouseEvent, Size,
 };
+pub use frame::{Frame, ScreenModel};
+pub use pty::Command;
 
 /// Identifies a pane on the bus.
 pub type Id = u64;

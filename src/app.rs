@@ -10,7 +10,7 @@ use crossterm::event::{Event, KeyCode, KeyEventKind, MouseEvent, MouseEventKind}
 use tokio::task::JoinSet;
 use tokio_util::time::{DelayQueue, delay_queue::Key};
 
-use tpane_core::{InputEvent, pane::Pane, process_watch::ProcessWatch};
+use tpane_core::{InputEvent, pane::Pane, process_watch::ProcessWatch, pty};
 
 use crate::{
     bus::{Bus, Control, PaneControl, PtyEvent},
@@ -75,8 +75,7 @@ impl App {
         let tree = Tree::new(1);
         let mut watch = ProcessWatch::new(bus.panes.clone())?;
         let pane = Pane::new(
-            &shell,
-            &launch_directory,
+            &pty::Command::login_shell(&shell, &launch_directory),
             1,
             (cols, rows, cell),
             bus.panes.clone(),
@@ -496,8 +495,7 @@ impl App {
                 );
                 next.activate(terminal);
                 let pane = Pane::new(
-                    &self.shell,
-                    &cwd,
+                    &pty::Command::login_shell(&self.shell, cwd),
                     terminal,
                     (self.cols, self.rows, self.cell),
                     self.bus.panes.clone(),

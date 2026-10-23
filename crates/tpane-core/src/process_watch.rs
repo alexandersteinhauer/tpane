@@ -1,4 +1,5 @@
 //! Evented child-exit notification only: the owner of each Child must reap it.
+//! macOS uses kqueue EVFILT_PROC, Linux pidfds.
 use std::io::{self, Result};
 
 use crate::{Id, bus::Bus};
@@ -180,15 +181,128 @@ mod platform {
 #[cfg(target_os = "macos")]
 pub use platform::ProcessWatch;
 
-#[cfg(not(target_os = "macos"))]
+/// Linux: one pidfd per child, readable once it exits. Kernels or sandboxes
+/// without `pidfd_open` fall back to polling `waitid(WNOWAIT)` every 20 ms,
+/// which observes the exit without reaping it.
+#[cfg(target_os = "linux")]
+mod platform {
+    use super::*;
+    use crate::bus::Control;
+    use std::{
+        collections::HashMap,
+        os::fd::{FromRawFd, OwnedFd},
+        time::Duration,
+    };
+    use tokio::{
+        io::{Interest, unix::AsyncFd},
+        task::JoinHandle,
+    };
+
+    pub struct ProcessWatch {
+        watched: HashMap<libc::pid_t, JoinHandle<()>>,
+        bus: Bus,
+    }
+
+    fn pidfd_open(pid: libc::pid_t) -> Result<OwnedFd> {
+        let fd = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0) };
+        if fd < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        // pidfds are always close-on-exec.
+        Ok(unsafe { OwnedFd::from_raw_fd(fd as libc::c_int) })
+    }
+
+    fn exited(pid: libc::pid_t) -> bool {
+        let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+        let result = unsafe {
+            libc::waitid(
+                libc::P_PID,
+                pid as libc::id_t,
+                &mut info,
+                libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+            )
+        };
+        // ECHILD: already reaped, or not our child; either way, not running.
+        result != 0 || unsafe { info.si_pid() } == pid
+    }
+
+    impl ProcessWatch {
+        pub fn new(bus: Bus) -> Result<Self> {
+            Ok(Self {
+                watched: HashMap::new(),
+                bus,
+            })
+        }
+
+        pub fn watch(&mut self, pid: libc::pid_t, id: Id) -> Result<()> {
+            if pid <= 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "expected a child PID",
+                ));
+            }
+            self.unwatch(pid)?;
+            let control = self.bus.control.clone();
+            let task = match pidfd_open(pid) {
+                Ok(fd) => {
+                    let fd = AsyncFd::with_interest(fd, Interest::READABLE)?;
+                    tokio::spawn(async move {
+                        if fd.readable().await.is_ok() {
+                            let _ = control.send(Control::ChildExited(id));
+                        }
+                    })
+                }
+                // Exit can win registration. The owner validates this hint
+                // using its owned Child.
+                Err(error) if error.raw_os_error() == Some(libc::ESRCH) => {
+                    return self
+                        .bus
+                        .control
+                        .send(Control::ChildExited(id))
+                        .map_err(|_| {
+                            io::Error::new(io::ErrorKind::BrokenPipe, "control receiver closed")
+                        });
+                }
+                Err(_) => tokio::spawn(async move {
+                    while !exited(pid) {
+                        tokio::time::sleep(Duration::from_millis(20)).await;
+                    }
+                    let _ = control.send(Control::ChildExited(id));
+                }),
+            };
+            self.watched.insert(pid, task);
+            Ok(())
+        }
+
+        pub fn unwatch(&mut self, pid: libc::pid_t) -> Result<()> {
+            if let Some(task) = self.watched.remove(&pid) {
+                task.abort();
+            }
+            Ok(())
+        }
+    }
+
+    impl Drop for ProcessWatch {
+        fn drop(&mut self) {
+            for task in self.watched.values() {
+                task.abort();
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub use platform::ProcessWatch;
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub struct ProcessWatch;
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 impl ProcessWatch {
     pub fn new(_: Bus) -> Result<Self> {
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
-            "process watching requires macOS kqueue",
+            "process watching requires macOS or Linux",
         ))
     }
     pub fn watch(&mut self, _: libc::pid_t, _: Id) -> Result<()> {
@@ -199,7 +313,7 @@ impl ProcessWatch {
     }
 }
 
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(all(test, any(target_os = "macos", target_os = "linux")))]
 mod tests {
     use super::*;
     use crate::bus::{self, Control};
@@ -229,7 +343,7 @@ mod tests {
         let (bus, _data, mut controls) = bus::channel();
         let mut watcher = ProcessWatch::new(bus).unwrap();
         for id in 1..=32 {
-            let mut child = OwnedChild::spawn("/usr/bin/true", &[]);
+            let mut child = OwnedChild::spawn("true", &[]);
             // Alternate a real registration race with deterministic ESRCH.
             if id % 2 == 0 {
                 child.0.wait().unwrap();
@@ -249,8 +363,8 @@ mod tests {
     async fn live_exit_exact_id_and_unwatch() {
         let (bus, _data, mut controls) = bus::channel();
         let mut watcher = ProcessWatch::new(bus).unwrap();
-        let mut child = OwnedChild::spawn("/bin/sleep", &["30"]);
-        let mut ignored = OwnedChild::spawn("/bin/sleep", &["30"]);
+        let mut child = OwnedChild::spawn("sleep", &["30"]);
+        let mut ignored = OwnedChild::spawn("sleep", &["30"]);
         let id = 0xfedc_ba98_7654_3210;
         watcher.watch(child.pid(), id).unwrap();
         watcher.watch(ignored.pid(), 42).unwrap();

@@ -151,12 +151,23 @@ impl Renderer {
         full: bool,
         always: bool,
     ) -> Result<Option<Frame>> {
+        let meta = FrameMeta::read(terminal)?;
+        self.frame_with(terminal, meta, full, always)
+    }
+
+    /// [`Renderer::frame`] with metadata the caller already read.
+    pub fn frame_with(
+        &mut self,
+        terminal: &Terminal<'static, '_>,
+        meta: FrameMeta,
+        full: bool,
+        always: bool,
+    ) -> Result<Option<Frame>> {
         let mut frame = Frame::default();
         let mut sink = FrameSink::new(&mut frame);
         if !self.walker.walk(terminal, &mut sink, 0, full, always)? {
             return Ok(None);
         }
-        let meta = FrameMeta::read(terminal)?;
         meta.apply(&mut frame);
         Ok(Some(frame))
     }

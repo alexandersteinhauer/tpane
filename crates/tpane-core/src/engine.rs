@@ -19,6 +19,7 @@ pub struct Engine {
     pub terminal: Terminal<'static, 'static>,
     replies: Rc<RefCell<Vec<u8>>>,
     cell_size: Rc<Cell<(u16, u16)>>,
+    bell: Rc<Cell<bool>>,
 }
 
 impl Engine {
@@ -55,10 +56,14 @@ impl Engine {
             })
         })?;
         terminal.set_apc_max_bytes(Some(1024 * 1024))?;
+        let bell = Rc::new(Cell::new(false));
+        let rang = Rc::clone(&bell);
+        terminal.on_bell(move |_| rang.set(true))?;
         Ok(Self {
             terminal,
             replies,
             cell_size,
+            bell,
         })
     }
 
@@ -77,6 +82,11 @@ impl Engine {
         );
         self.terminal.vt_write(bytes);
         Ok(())
+    }
+
+    /// Whether BEL arrived since the last call.
+    pub fn take_bell(&mut self) -> bool {
+        self.bell.replace(false)
     }
 
     pub fn take_replies(&mut self) -> Vec<u8> {
