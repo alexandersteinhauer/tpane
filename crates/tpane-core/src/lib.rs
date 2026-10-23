@@ -20,6 +20,7 @@ pub mod bus;
 pub mod engine;
 pub mod event;
 pub mod frame;
+pub mod headless;
 pub mod input;
 pub mod pane;
 mod process;
@@ -37,6 +38,7 @@ pub use event::{
     InputEvent, Key, KeyAction, KeyEvent, Modifiers, MouseAction, MouseButton, MouseEvent, Size,
 };
 pub use frame::{Frame, ScreenModel};
+pub use headless::{ExitStatus, Terminal, TerminalEvent, TerminalOptions, Viewer};
 pub use pty::Command;
 
 /// Identifies a pane on the bus.
