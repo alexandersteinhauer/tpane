@@ -19,7 +19,7 @@ Requires macOS, Xcode Command Line Tools, Git, and Rust through rustup. Rust **1
 ./target/release/tpane
 ```
 
-Bootstrap installs checksum-verified **Zig 0.16.0** into ignored `.tools/` (macOS arm64/x86_64, Linux x86_64/aarch64), without changing your system installation. Zig builds Ghostty, not Rust. The first build needs network access for Cargo, Ghostty source, and Zig dependencies. `libghostty-vt` is pinned to libghostty-rs commit `d2036baeb605d31d09a9e2ba6d0c923e04c34d54` (unreleased; crates.io 0.2.2 still uses an older Ghostty), whose native build pins Ghostty to `3425025e585a3403340d4dc6d65132f42e05e605`. Ghostty requires a Zig with the same major.minor version as its `minimum_zig_version`, so Zig 0.17 cannot build it.
+Bootstrap installs checksum-verified **Zig 0.16.0** into ignored `.tools/` (macOS arm64/x86_64, Linux x86_64/aarch64), without changing your system installation. Zig builds Ghostty, not Rust. The first build needs network access for Cargo, Ghostty source, and Zig dependencies. `libghostty-vt` is pinned to libghostty-rs commit `0ef80413de1326685743378efbfa06d849e041a7` (unreleased; crates.io 0.2.2 still uses an older Ghostty), whose native build pins Ghostty to `3425025e585a3403340d4dc6d65132f42e05e605`. Ghostty requires a Zig with the same major.minor version as its `minimum_zig_version`, so Zig 0.17 cannot build it.
 
 ## Using tpane-core
 

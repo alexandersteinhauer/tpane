@@ -118,7 +118,9 @@ fn duplicate_master(fd: RawFd) -> Result<Master> {
         return Err(io::Error::last_os_error()).context("set PTY master nonblocking");
     }
     Ok(Arc::new(
-        AsyncFd::new(owned).context("register PTY master")?,
+        // SAFETY: the OwnedFd keeps the duplicated master open and unchanged
+        // until the AsyncFd drops it.
+        unsafe { AsyncFd::register(owned) }.context("register PTY master")?,
     ))
 }
 
@@ -481,7 +483,11 @@ mod tests {
             0
         );
         drop(master); // Only transport tasks retain this end of the socket.
-        (connection, AsyncFd::new(peer.into()).unwrap())
+        // SAFETY: an OwnedFd stays open and unchanged while the AsyncFd owns it.
+        (
+            connection,
+            unsafe { AsyncFd::register(OwnedFd::from(peer)) }.unwrap(),
+        )
     }
 
     fn payload(len: usize) -> Vec<u8> {
@@ -807,7 +813,8 @@ mod tests {
             let peer = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
             let (master, _) = listener.accept().unwrap();
             peer.set_nonblocking(true).unwrap();
-            let peer = AsyncFd::new(OwnedFd::from(peer)).unwrap();
+            // SAFETY: an OwnedFd stays open and unchanged while the AsyncFd owns it.
+            let peer = unsafe { AsyncFd::register(OwnedFd::from(peer)) }.unwrap();
             let (bus, mut events, mut controls) = bus::channel();
             let _connection = connect(master.as_raw_fd(), 73, bus).unwrap();
             drop(master);

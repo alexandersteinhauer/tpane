@@ -27,7 +27,11 @@ mod tests {
                 use tokio::io::{Interest, unix::AsyncFd};
                 let (fd, mut peer) = UnixStream::pair().unwrap();
                 fd.set_nonblocking(true).unwrap();
-                let fd = AsyncFd::with_interest(OwnedFd::from(fd), Interest::READABLE).unwrap();
+                // SAFETY: an OwnedFd stays open and unchanged while the AsyncFd owns it.
+                let fd = unsafe {
+                    AsyncFd::register_with_interest(OwnedFd::from(fd), Interest::READABLE)
+                }
+                .unwrap();
                 std::io::Write::write_all(&mut peer, b"x").unwrap();
                 let _ready = fd.readable().await.unwrap();
                 send.send(thread::current().id()).unwrap();

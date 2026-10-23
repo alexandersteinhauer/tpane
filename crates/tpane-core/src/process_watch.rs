@@ -62,7 +62,11 @@ mod platform {
                 return Err(io::Error::last_os_error());
             }
             // A kqueue fd supports read readiness, not EVFILT_WRITE.
-            let queue = Arc::new(AsyncFd::with_interest(fd, Interest::READABLE)?);
+            // SAFETY: the OwnedFd keeps the kqueue descriptor open and unchanged
+            // until the AsyncFd drops it.
+            let queue = unsafe { AsyncFd::register_with_interest(fd, Interest::READABLE) }
+                .map_err(|error| error.into_parts().1)?;
+            let queue = Arc::new(queue);
             let watched = Arc::new(Mutex::new(HashMap::new()));
             let task_queue = queue.clone();
             let task_watched = watched.clone();
@@ -245,7 +249,10 @@ mod platform {
             let control = self.bus.control.clone();
             let task = match pidfd_open(pid) {
                 Ok(fd) => {
-                    let fd = AsyncFd::with_interest(fd, Interest::READABLE)?;
+                    // SAFETY: the OwnedFd keeps the pidfd open and unchanged until
+                    // the AsyncFd drops it.
+                    let fd = unsafe { AsyncFd::register_with_interest(fd, Interest::READABLE) }
+                        .map_err(|error| error.into_parts().1)?;
                     tokio::spawn(async move {
                         if fd.readable().await.is_ok() {
                             let _ = control.send(Control::ChildExited(id));

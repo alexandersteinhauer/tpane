@@ -73,7 +73,10 @@ impl HostOutput {
         {
             return Err(io::Error::last_os_error());
         }
-        let output = AsyncFd::with_interest(duplicate, Interest::WRITABLE)?;
+        // SAFETY: NonblockingFd owns the duplicate and always reports it, so it
+        // stays open and unchanged until the AsyncFd drops it.
+        let output = unsafe { AsyncFd::register_with_interest(duplicate, Interest::WRITABLE) }
+            .map_err(|error| error.into_parts().1)?;
         let (sender, mut receiver) = mpsc::channel(1);
         let task = tokio::spawn(async move {
             while let Some(message) = receiver.recv().await {
@@ -248,7 +251,8 @@ mod tests {
         reader.set_nonblocking(true).unwrap();
         (
             writer,
-            AsyncFd::with_interest(reader, Interest::READABLE).unwrap(),
+            // SAFETY: the stream owns its descriptor until the AsyncFd drops it.
+            unsafe { AsyncFd::register_with_interest(reader, Interest::READABLE) }.unwrap(),
         )
     }
 
