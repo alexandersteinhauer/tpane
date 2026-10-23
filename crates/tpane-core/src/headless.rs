@@ -141,6 +141,14 @@ impl Drop for Inner {
     }
 }
 
+struct Done(watch::Sender<bool>);
+
+impl Drop for Done {
+    fn drop(&mut self) {
+        let _ = self.0.send(true);
+    }
+}
+
 /// A handle to a headless terminal. `Send + Sync`; clones share the terminal.
 #[derive(Clone)]
 pub struct Terminal {
@@ -169,6 +177,8 @@ impl Terminal {
         std::thread::Builder::new()
             .name("tpane-terminal".into())
             .spawn(move || {
+                // Reported even if the owner panics, so `shutdown` returns.
+                let _done = Done(done_sender);
                 let thread_runtime = runtime.clone();
                 thread_runtime.block_on(async move {
                     let owner = match Owner::start(options, events, exit_sender) {
@@ -181,7 +191,6 @@ impl Terminal {
                     let _ = ready.send(Ok(owner.pid()));
                     owner.run(receiver).await;
                 });
-                let _ = done_sender.send(true);
             })
             .context("starting the terminal owner thread")?;
         let pid = started
