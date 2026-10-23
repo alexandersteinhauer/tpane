@@ -19,8 +19,8 @@ use tokio::{
 };
 
 use crate::{
+    Id,
     bus::{Bus, Control, PtyEvent},
-    tree::Id,
 };
 
 const MAX_PENDING_INPUT: usize = 8 * 1024 * 1024;

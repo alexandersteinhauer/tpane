@@ -1,7 +1,7 @@
 //! Evented child-exit notification only: the owner of each Child must reap it.
 use std::io::{self, Result};
 
-use crate::{bus::Bus, tree::Id};
+use crate::{Id, bus::Bus};
 
 #[cfg(target_os = "macos")]
 mod platform {

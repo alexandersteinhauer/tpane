@@ -5,19 +5,19 @@ use std::{
 };
 
 use anyhow::{Result, bail};
-use crossterm::event::{Event, KeyModifiers, MouseEvent, MouseEventKind};
 use libghostty_vt::{screen::Screen, terminal::ScrollViewport};
 
 use crate::{
-    bus::{Bus, Control},
+    Id,
+    bus::Bus,
     engine::Engine,
+    event::{InputEvent, MouseAction, MouseButton, MouseEvent},
     input::{self, Input},
     process_watch::ProcessWatch,
     pty::Session,
     render::Renderer,
     selection::SelectionState,
     transport::{self, Writer},
-    tree::Id,
 };
 
 pub struct Pane {
@@ -34,7 +34,6 @@ pub struct Pane {
     retry_at: Option<Instant>,
     exit_reported: Option<Instant>,
     geometry: (u16, u16, u16, u16),
-    bus: Bus,
 }
 
 impl Pane {
@@ -53,7 +52,7 @@ impl Pane {
         let mut input = Input::new()?;
         input.set_cell_size(cell.0, cell.1);
         let session = Session::spawn_in(shell, rows, cols, cwd)?;
-        let connection = transport::connect(session.raw_fd()?, id, bus.clone())?;
+        let connection = transport::connect(session.raw_fd()?, id, bus)?;
         watch.watch(session.pid(), id)?;
         Ok(Self {
             selection: SelectionState::default(),
@@ -69,7 +68,6 @@ impl Pane {
             retry_at: None,
             exit_reported: None,
             geometry: (cols, rows, cell.0, cell.1),
-            bus,
         })
     }
 
@@ -156,9 +154,12 @@ impl Pane {
             .write(&input::focus(&self.engine.terminal, focused)?)
     }
 
-    pub fn event(&mut self, event: Event) -> Result<()> {
+    /// Routes one input event to the child, local selection, or scrollback.
+    /// Returns text the user selected for copying, if a selection completed.
+    /// Focus and resize events are handled by `focus` and `resize`.
+    pub fn input(&mut self, event: &InputEvent) -> Result<Option<String>> {
         match event {
-            Event::Key(key) => {
+            InputEvent::Key(key) => {
                 let bytes = self.input.key(&self.engine.terminal, key)?;
                 if !bytes.is_empty() {
                     self.selection.clear(&self.engine.terminal)?;
@@ -166,84 +167,50 @@ impl Pane {
                     self.writer.write(&bytes)?;
                 }
             }
-            Event::Paste(text) => {
+            InputEvent::Paste { text } => {
                 self.selection.clear(&self.engine.terminal)?;
                 self.engine.terminal.scroll_viewport(ScrollViewport::Bottom);
                 self.writer
-                    .write(&input::paste(&self.engine.terminal, &text)?)?;
+                    .write(&input::paste(&self.engine.terminal, text)?)?;
             }
-            Event::Mouse(mouse) => self.mouse(mouse)?,
-            _ => {}
+            InputEvent::Mouse(mouse) => return self.mouse(mouse),
+            InputEvent::Focus { focused } => self.focus(*focused)?,
+            InputEvent::Resize(size) => {
+                self.resize(size.cols, size.rows, (size.cell_width, size.cell_height))?
+            }
         }
-        Ok(())
+        Ok(None)
     }
 
-    fn mouse(&mut self, mouse: MouseEvent) -> Result<()> {
-        if self.engine.terminal.is_mouse_tracking()? && !mouse.modifiers.contains(KeyModifiers::ALT)
-        {
+    /// Mouse reporting goes to the child when it tracks the mouse, unless Alt
+    /// is held; otherwise the wheel scrolls the primary screen's history and
+    /// the left button selects. A completed selection returns its text.
+    fn mouse(&mut self, mouse: &MouseEvent) -> Result<Option<String>> {
+        if self.engine.terminal.is_mouse_tracking()? && !mouse.mods.alt {
             self.writer
                 .write(&self.input.mouse(&self.engine.terminal, mouse)?)?;
-        } else {
-            match mouse.kind {
-                MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
-                    if self.engine.terminal.active_screen()? == Screen::Primary =>
-                {
-                    let delta = if mouse.kind == MouseEventKind::ScrollUp {
-                        -3
-                    } else {
-                        3
-                    };
-                    self.engine
-                        .terminal
-                        .scroll_viewport(ScrollViewport::Delta(delta));
-                }
-                _ => {
-                    if let Some(text) = self.selection.mouse(&mut self.engine.terminal, mouse)? {
-                        self.copy(text)?;
-                    }
-                }
-            }
+            return Ok(None);
         }
-        Ok(())
-    }
-
-    fn copy(&self, text: Vec<u8>) -> Result<()> {
-        let permit = self
-            .bus
-            .clipboard
-            .clone()
-            .try_acquire_owned()
-            .map_err(|_| anyhow::anyhow!("clipboard is busy"))?;
-        let control = self.bus.control.clone();
-        tokio::spawn(async move {
-            use tokio::io::AsyncWriteExt;
-            let result: Result<()> = async {
-                let mut child = tokio::process::Command::new("/usr/bin/pbcopy")
-                    .stdin(std::process::Stdio::piped())
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .kill_on_drop(true)
-                    .spawn()?;
-                let operation = async {
-                    let mut stdin = child
-                        .stdin
-                        .take()
-                        .ok_or_else(|| anyhow::anyhow!("clipboard input unavailable"))?;
-                    stdin.write_all(&text).await?;
-                    drop(stdin);
-                    anyhow::ensure!(child.wait().await?.success(), "clipboard command failed");
-                    Ok::<_, anyhow::Error>(())
+        match (mouse.action, mouse.button) {
+            (
+                MouseAction::Press,
+                Some(button @ (MouseButton::WheelUp | MouseButton::WheelDown)),
+            ) if self.engine.terminal.active_screen()? == Screen::Primary => {
+                let delta = if button == MouseButton::WheelUp {
+                    -3
+                } else {
+                    3
                 };
-                tokio::time::timeout(Duration::from_secs(1), operation).await??;
-                Ok(())
+                self.engine
+                    .terminal
+                    .scroll_viewport(ScrollViewport::Delta(delta));
+                Ok(None)
             }
-            .await;
-            drop(permit);
-            let _ = control.send(Control::ClipboardFinished(
-                result.map_err(|error| error.to_string()),
-            ));
-        });
-        Ok(())
+            _ => Ok(self
+                .selection
+                .mouse(&mut self.engine.terminal, mouse)?
+                .map(|text| String::from_utf8_lossy(&text).into_owned())),
+        }
     }
 
     pub fn into_session(self) -> Session {

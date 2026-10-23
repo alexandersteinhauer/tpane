@@ -1,0 +1,30 @@
+[package]
+name = "tpane-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+description = "Ghostty-powered terminal core: PTY, emulator, input encoding, VT and frame rendering, headless terminals"
+publish = false
+
+[features]
+# Serialize input events and frames, e.g. to send them to a browser viewer.
+serde = ["dep:serde"]
+
+[dependencies]
+anyhow = "1"
+libc = "0.2"
+# The only exact pin: no crates.io release of libghostty-vt carries the Ghostty
+# C API this crate needs (terminal options, mode queries, byte-limited
+# scrollback, render state). Move to a crates.io range once one is released.
+libghostty-vt = { git = "https://github.com/Uzaaft/libghostty-rs", rev = "d2036baeb605d31d09a9e2ba6d0c923e04c34d54", default-features = false }
+# PTY allocation and session/controlling-terminal setup on macOS and Linux.
+# Small and pure Rust; replacing it means re-implementing fork/exec safely.
+portable-pty = "0.9"
+serde = { version = "1", features = ["derive"], optional = true }
+# rt: spawning the PTY I/O tasks; net: AsyncFd; sync: channels; time: timers;
+# macros: select!.
+tokio = { version = "1", features = ["rt", "net", "sync", "time", "macros"] }
+
+[dev-dependencies]
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }

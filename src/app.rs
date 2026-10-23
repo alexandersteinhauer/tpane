@@ -10,12 +10,14 @@ use crossterm::event::{Event, KeyCode, KeyEventKind, MouseEvent, MouseEventKind}
 use tokio::task::JoinSet;
 use tokio_util::time::{DelayQueue, delay_queue::Key};
 
+use tpane_core::{InputEvent, pane::Pane, process_watch::ProcessWatch};
+
 use crate::{
-    bus::{Bus, Control, PtyEvent},
+    bus::{Bus, Control, PaneControl, PtyEvent},
+    clipboard,
     command_keys::{CommandKeys, Route as CommandRoute},
+    convert,
     explorer::{Command, Explorer},
-    pane::Pane,
-    process_watch::ProcessWatch,
     tab_keys::{Route, TabKeys},
     tree::{Action, Id, Tree},
 };
@@ -71,13 +73,13 @@ impl App {
         let (cols, rows) = (cols.max(1), rows.max(1));
         let launch_directory = std::env::current_dir()?;
         let tree = Tree::new(1);
-        let mut watch = ProcessWatch::new(bus.clone())?;
+        let mut watch = ProcessWatch::new(bus.panes.clone())?;
         let pane = Pane::new(
             &shell,
             &launch_directory,
             1,
             (cols, rows, cell),
-            bus.clone(),
+            bus.panes.clone(),
             &mut watch,
         )?;
         Ok(Self {
@@ -133,9 +135,9 @@ impl App {
         Ok(())
     }
 
-    pub fn control(&mut self, event: Control) -> Result<()> {
+    pub fn pane_control(&mut self, event: PaneControl) -> Result<()> {
         match event {
-            Control::ChildExited(id) => {
+            PaneControl::ChildExited(id) => {
                 if let Some(pane) = self.panes.get_mut(&id)
                     && let Err(error) = pane.reap(&mut self.watch)
                 {
@@ -143,7 +145,7 @@ impl App {
                 }
                 self.settle(id)?;
             }
-            Control::WriteError { id, error } => {
+            PaneControl::WriteError { id, error } => {
                 if let Some(pane) = self.panes.get_mut(&id) {
                     if pane.session.try_wait()?.is_some() {
                         pane.reap(&mut self.watch)?;
@@ -153,6 +155,12 @@ impl App {
                     }
                 }
             }
+        }
+        Ok(())
+    }
+
+    pub fn control(&mut self, event: Control) -> Result<()> {
+        match event {
             Control::ClipboardFinished(result) => {
                 if let Err(error) = result {
                     self.notify(format!("Clipboard: {error}"));
@@ -360,10 +368,15 @@ impl App {
             }
             Event::Resize(_, _) => Ok(()),
             _ => {
-                if let Some(id) = self.tree.active_terminal()
-                    && let Err(error) = self.panes.get_mut(&id).unwrap().event(event)
+                let event = match event {
+                    Event::Key(key) => convert::key(key).map(InputEvent::Key),
+                    Event::Paste(text) => Some(InputEvent::Paste { text }),
+                    _ => None,
+                };
+                if let Some(event) = event
+                    && let Some(id) = self.tree.active_terminal()
                 {
-                    self.notify(format!("Input: {error:#}"));
+                    self.pane_input(id, &event, "Input");
                 }
                 Ok(())
             }
@@ -392,11 +405,21 @@ impl App {
         {
             mouse.row = mouse.row.min(self.rows - 1);
             mouse.column = mouse.column.min(self.cols - 1);
-            if let Err(error) = self.panes.get_mut(&id).unwrap().event(Event::Mouse(mouse)) {
-                self.notify(format!("Mouse: {error:#}"));
-            }
+            self.pane_input(id, &InputEvent::Mouse(convert::mouse(mouse)), "Mouse");
         }
         Ok(())
+    }
+
+    fn pane_input(&mut self, id: Id, event: &InputEvent, context: &str) {
+        let result = self.panes.get_mut(&id).unwrap().input(event);
+        let result = match result {
+            Ok(Some(text)) => clipboard::copy(&self.bus, text),
+            Ok(None) => Ok(()),
+            Err(error) => Err(error),
+        };
+        if let Err(error) = result {
+            self.notify(format!("{context}: {error:#}"));
+        }
     }
 
     fn set_explorer(&mut self, open: bool) {
@@ -477,7 +500,7 @@ impl App {
                     &cwd,
                     terminal,
                     (self.cols, self.rows, self.cell),
-                    self.bus.clone(),
+                    self.bus.panes.clone(),
                     &mut self.watch,
                 )?;
                 self.next_id += 2;
@@ -614,7 +637,7 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn a_clean_render_does_not_count_as_a_presented_frame() {
-        let (bus, _data, _control) = crate::bus::channel();
+        let (bus, _receivers) = crate::bus::channel();
         let mut app = App::new(PathBuf::from("/bin/sh"), 12, 4, (0, 0), bus).unwrap();
         let mut bytes = Vec::new();
         assert!(app.draw(&mut bytes).unwrap());
@@ -625,14 +648,14 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn overlay_composes_before_frame_commit_and_dismissal_restores_terminal() {
-        let (bus, _data, _control) = crate::bus::channel();
+        let (bus, _receivers) = crate::bus::channel();
         let mut app = App::new(PathBuf::from("/bin/sh"), 80, 24, (0, 0), bus).unwrap();
         app.panes
             .get_mut(&1)
             .unwrap()
             .output(b"\x1b[2J\x1b[HBASE")
             .unwrap();
-        let mut host = libghostty_vt::Terminal::new(80, 24).unwrap();
+        let mut host = tpane_core::vt::Terminal::new(80, 24).unwrap();
         host.vt_write(b"\x1b[?7l");
         for open in [false, true, true, false] {
             if open != app.explorer.is_some() {
@@ -658,7 +681,7 @@ mod tests {
             assert_eq!(String::from_utf8_lossy(&bytes).contains('›'), open);
             host.vt_write(&bytes);
         }
-        use libghostty_vt::terminal::{Point, PointCoordinate};
+        use tpane_core::vt::terminal::{Point, PointCoordinate};
         for (x, ch) in "live output".chars().enumerate() {
             let cell = host
                 .grid_ref(Point::Active(PointCoordinate { x: x as u16, y: 11 }))
@@ -673,7 +696,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn explorer_browsing_and_cancel_preserve_selection() {
         use crossterm::event::{KeyEvent, KeyModifiers};
-        let (bus, _data, _control) = crate::bus::channel();
+        let (bus, _receivers) = crate::bus::channel();
         let mut app = App::new(PathBuf::from("/bin/sh"), 80, 24, (0, 0), bus).unwrap();
         app.command(Command::AddSibling(1)).unwrap();
         let selected = app.tree.active_terminal();

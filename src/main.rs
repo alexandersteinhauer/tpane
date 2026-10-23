@@ -1,23 +1,17 @@
 #[cfg(not(target_os = "macos"))]
-compile_error!("tpane currently supports macOS only");
+compile_error!("the tpane app currently supports macOS only; tpane-core is cross-platform");
 
 mod app;
 mod bus;
+mod clipboard;
 mod command_keys;
-mod engine;
+mod convert;
 mod explorer;
 mod host;
 mod host_input;
-mod input;
 mod output;
-mod pane;
-mod process_watch;
-mod pty;
-mod render;
 mod runtime;
-mod selection;
 mod tab_keys;
-mod transport;
 mod tree;
 
 use std::{
@@ -88,7 +82,12 @@ async fn run() -> Result<u8> {
     let mut interrupt = signal(SignalKind::interrupt())?;
     let mut quit = signal(SignalKind::quit())?;
     let mut host = Host::enter()?;
-    let (sender, mut data, mut control) = bus::channel();
+    let (sender, receivers) = bus::channel();
+    let bus::Receivers {
+        mut data,
+        panes: mut pane_control,
+        mut control,
+    } = receivers;
     let mut output = HostOutput::new(libc::STDOUT_FILENO, sender.clone())?;
     output.send_frame(host::setup()?)?;
     let (cols, rows, cell) = dimensions()?;
@@ -140,6 +139,7 @@ async fn run() -> Result<u8> {
                         output_busy = false;
                     } else { app.control(event)?; }
                 }
+                Some(event) = pane_control.recv() => app.pane_control(event)?,
                 Some(expired) = app.timers.next(), if timers => app.timeout(expired.into_inner())?,
                 Some(result) = app.cleanup.join_next(), if cleanup => { result.context("pane cleanup task")?; }
                 event = next_activity(&mut input.events, &mut data, &mut batch) => match event? {

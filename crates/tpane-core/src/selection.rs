@@ -1,11 +1,12 @@
 use anyhow::Result;
-use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use libghostty_vt::{
     Terminal,
     screen::TrackedGridRef,
     selection::{FormatOptions, Selection},
     terminal::{Point, PointCoordinate},
 };
+
+use crate::event::{MouseAction, MouseButton, MouseEvent};
 
 #[derive(Default)]
 pub struct SelectionState {
@@ -27,14 +28,14 @@ impl SelectionState {
     pub fn mouse(
         &mut self,
         terminal: &mut Terminal<'_, '_>,
-        event: MouseEvent,
+        event: &MouseEvent,
     ) -> Result<Option<Vec<u8>>> {
         let point = Point::Viewport(PointCoordinate {
-            x: event.column.min(terminal.cols()?.saturating_sub(1)),
-            y: u32::from(event.row.min(terminal.rows()?.saturating_sub(1))),
+            x: event.x.min(terminal.cols()?.saturating_sub(1)),
+            y: u32::from(event.y.min(terminal.rows()?.saturating_sub(1))),
         });
-        match event.kind {
-            MouseEventKind::Down(MouseButton::Left) => {
+        match (event.action, event.button) {
+            (MouseAction::Press, Some(MouseButton::Left)) => {
                 self.clear(terminal)?;
                 if let Some(anchor) = &mut self.anchor {
                     anchor.set(terminal, point)?;
@@ -43,7 +44,7 @@ impl SelectionState {
                 }
                 self.dragging = true;
             }
-            MouseEventKind::Drag(MouseButton::Left) if self.dragging => {
+            (MouseAction::Motion, Some(MouseButton::Left)) if self.dragging => {
                 if let Some(anchor) = &self.anchor
                     && let Some(start) = anchor.snapshot(terminal)?
                 {
@@ -51,7 +52,7 @@ impl SelectionState {
                     terminal.set_selection(Some(&Selection::new(start, end, false)))?;
                 }
             }
-            MouseEventKind::Up(MouseButton::Left) if self.dragging => {
+            (MouseAction::Release, Some(MouseButton::Left)) if self.dragging => {
                 self.dragging = false;
                 return selected_text(terminal);
             }
@@ -70,15 +71,16 @@ fn selected_text(terminal: &Terminal<'_, '_>) -> Result<Option<Vec<u8>>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crossterm::event::KeyModifiers;
+    use crate::event::Modifiers;
     use libghostty_vt::terminal::ScrollViewport;
 
-    fn mouse(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
+    fn mouse(action: MouseAction, x: u16, y: u16) -> MouseEvent {
         MouseEvent {
-            kind,
-            column,
-            row,
-            modifiers: KeyModifiers::NONE,
+            action,
+            button: Some(MouseButton::Left),
+            x,
+            y,
+            mods: Modifiers::NONE,
         }
     }
 
@@ -89,22 +91,13 @@ mod tests {
         terminal.scroll_viewport(ScrollViewport::Top);
         let mut selection = SelectionState::default();
         selection
-            .mouse(
-                &mut terminal,
-                mouse(MouseEventKind::Down(MouseButton::Left), 0, 0),
-            )
+            .mouse(&mut terminal, &mouse(MouseAction::Press, 0, 0))
             .unwrap();
         selection
-            .mouse(
-                &mut terminal,
-                mouse(MouseEventKind::Drag(MouseButton::Left), 7, 0),
-            )
+            .mouse(&mut terminal, &mouse(MouseAction::Motion, 7, 0))
             .unwrap();
         let copied = selection
-            .mouse(
-                &mut terminal,
-                mouse(MouseEventKind::Up(MouseButton::Left), 7, 0),
-            )
+            .mouse(&mut terminal, &mouse(MouseAction::Release, 7, 0))
             .unwrap();
         assert_eq!(copied.unwrap(), b"old line");
         selection.clear(&terminal).unwrap();

@@ -9,12 +9,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use libghostty_vt::{
+use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, SlavePty, native_pty_system};
+use tpane_core::vt::{
     Terminal,
     screen::Screen,
     terminal::{Mode, Point, PointCoordinate},
 };
-use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, SlavePty, native_pty_system};
 
 const TIMEOUT: Duration = Duration::from_secs(8);
 const HOST_TEXT: &str = "original host screen";

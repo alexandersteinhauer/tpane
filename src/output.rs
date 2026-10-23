@@ -287,7 +287,8 @@ mod tests {
     async fn large_frames_order_and_runtime_progress_while_blocked() {
         let (writer, reader) = pair();
         let original = flags(writer.as_raw_fd());
-        let (bus, _data, mut controls) = bus::channel();
+        let (bus, mut receivers) = bus::channel();
+        let controls = &mut receivers.control;
         let mut output = HostOutput::new(writer.as_raw_fd(), bus).unwrap();
         assert_ne!(flags(writer.as_raw_fd()) & libc::O_NONBLOCK, 0);
         let first = vec![0x31; 1024 * 1024];
@@ -331,7 +332,8 @@ mod tests {
     async fn blocked_finish_cancels_and_restores_flags() {
         let (writer, _reader) = pair();
         let original = flags(writer.as_raw_fd());
-        let (bus, _data, mut controls) = bus::channel();
+        let (bus, mut receivers) = bus::channel();
+        let controls = &mut receivers.control;
         let mut output = HostOutput::new(writer.as_raw_fd(), bus).unwrap();
         output.send_frame(vec![1; 1024 * 1024]).unwrap();
         let error = output
@@ -351,7 +353,7 @@ mod tests {
     async fn drop_cleans_up_on_runtime_yield() {
         let (writer, _reader) = pair();
         let original = flags(writer.as_raw_fd());
-        let (bus, _data, _controls) = bus::channel();
+        let (bus, _receivers) = bus::channel();
         let mut output = HostOutput::new(writer.as_raw_fd(), bus).unwrap();
         output.send_frame(vec![1; 1024 * 1024]).unwrap();
         let task = output.task.as_ref().unwrap().abort_handle();
@@ -366,7 +368,7 @@ mod tests {
         let (writer, _reader) = pair();
         writer.set_nonblocking(true).unwrap();
         let original = flags(writer.as_raw_fd());
-        let (bus, _data, _controls) = bus::channel();
+        let (bus, _receivers) = bus::channel();
         let mut output = HostOutput::new(writer.as_raw_fd(), bus).unwrap();
         output
             .finish(b"reset", Duration::from_secs(1))
@@ -379,7 +381,8 @@ mod tests {
     async fn write_error_is_exact_and_reported_once() {
         let (writer, reader) = pair();
         let original = flags(writer.as_raw_fd());
-        let (bus, _data, mut controls) = bus::channel();
+        let (bus, mut receivers) = bus::channel();
+        let controls = &mut receivers.control;
         let mut output = HostOutput::new(writer.as_raw_fd(), bus).unwrap();
         drop(reader);
         output.send_frame(vec![1; 1024]).unwrap();
@@ -405,7 +408,8 @@ mod tests {
     #[tokio::test]
     async fn full_queue_does_not_replace_accepted_frame() {
         let (writer, reader) = pair();
-        let (bus, _data, mut controls) = bus::channel();
+        let (bus, mut receivers) = bus::channel();
+        let controls = &mut receivers.control;
         let mut output = HostOutput::new(writer.as_raw_fd(), bus).unwrap();
         // No yield: the worker has not consumed the channel's one slot.
         output.send_frame(b"accepted".to_vec()).unwrap();
